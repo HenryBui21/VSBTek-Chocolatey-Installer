@@ -4,12 +4,25 @@
 # Author: VSBTek
 # Description: Automates installation of applications via Chocolatey package manager
 
-#Requires -RunAsAdministrator
-
 param(
     [Parameter(Mandatory=$false)]
     [string]$ConfigFile = $null
 )
+
+# Auto-elevate the script if not running as Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "Requesting Administrator privileges..." -ForegroundColor Yellow
+
+    # Build arguments to pass to elevated process
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    if ($ConfigFile) {
+        $arguments += " -ConfigFile `"$ConfigFile`""
+    }
+
+    # Start elevated process
+    Start-Process PowerShell.exe -ArgumentList $arguments -Verb RunAs
+    exit
+}
 
 # Script configuration
 $ErrorActionPreference = 'Stop'

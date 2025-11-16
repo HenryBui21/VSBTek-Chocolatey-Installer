@@ -51,22 +51,7 @@
       "params": []
     },
     {
-      "name": "git",
-      "version": null,
-      "params": []
-    },
-    {
-      "name": "python",
-      "version": null,
-      "params": []
-    },
-    {
       "name": "java-runtime",
-      "version": null,
-      "params": []
-    },
-    {
-      "name": "adobereader",
       "version": null,
       "params": []
     },

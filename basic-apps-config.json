@@ -36,6 +36,41 @@
       "params": []
     },
     {
+      "name": "dotnet-8.0-desktopruntime",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "vlc",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "7zip",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "git",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "python",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "java-runtime",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "adobereader",
+      "version": null,
+      "params": []
+    },
+    {
       "name": "patch-my-pc",
       "version": null,
       "params": []

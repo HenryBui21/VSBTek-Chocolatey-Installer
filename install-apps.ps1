@@ -1,4 +1,4 @@
-﻿# Chocolatey Applications Installer Script (Smart Mode)
+# Chocolatey Applications Installer Script (Smart Mode)
 # This script can be executed remotely using: irm <url> | iex
 # Or with JSON config: .\install-apps.ps1 -ConfigFile "apps-config.json"
 # Author: VSBTek
@@ -57,6 +57,34 @@ function Write-WarningMsg {
     Write-ColorOutput "[WARNING] $Message" -Color Yellow
 }
 
+# Refresh environment variables (similar to refreshenv from Chocolatey)
+function Update-SessionEnvironment {
+    Write-Info "Refreshing environment variables..."
+
+    $locations = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+                 'HKCU:\Environment'
+
+    $locations | ForEach-Object {
+        $k = Get-Item $_
+        $k.GetValueNames() | ForEach-Object {
+            $name = $_
+            $value = $k.GetValue($name)
+            if ($name -eq 'Path') {
+                # Don't override Path, append it
+                $env:Path = $value
+            } else {
+                Set-Item -Path "Env:\$name" -Value $value
+            }
+        }
+    }
+
+    # Append chocolatey to path if not already there
+    $chocoPath = "$env:ALLUSERSPROFILE\chocolatey\bin"
+    if ($env:Path -notlike "*$chocoPath*") {
+        $env:Path = "$env:Path;$chocoPath"
+    }
+}
+
 # Check if running as Administrator
 function Test-Administrator {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -83,8 +111,8 @@ function Install-Chocolatey {
         # Download and install Chocolatey
         Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-        # Refresh environment variables
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+        # Refresh environment to make choco command available
+        Update-SessionEnvironment
 
         if (Get-Command choco -ErrorAction SilentlyContinue) {
             Write-Success "Chocolatey installed successfully"

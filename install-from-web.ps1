@@ -82,6 +82,34 @@ function Write-WarningMsg {
     Write-Host "[WARNING] $Message" -ForegroundColor Yellow
 }
 
+# Refresh environment variables (similar to refreshenv from Chocolatey)
+function Update-SessionEnvironment {
+    Write-Info "Refreshing environment variables..."
+
+    $locations = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+                 'HKCU:\Environment'
+
+    $locations | ForEach-Object {
+        $k = Get-Item $_
+        $k.GetValueNames() | ForEach-Object {
+            $name = $_
+            $value = $k.GetValue($name)
+            if ($name -eq 'Path') {
+                # Don't override Path, append it
+                $env:Path = $value
+            } else {
+                Set-Item -Path "Env:\$name" -Value $value
+            }
+        }
+    }
+
+    # Append chocolatey to path if not already there
+    $chocoPath = "$env:ALLUSERSPROFILE\chocolatey\bin"
+    if ($env:Path -notlike "*$chocoPath*") {
+        $env:Path = "$env:Path;$chocoPath"
+    }
+}
+
 # Install Chocolatey if needed
 function Install-Chocolatey {
     Write-Info "Checking Chocolatey installation..."
@@ -98,13 +126,15 @@ function Install-Chocolatey {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+        # Refresh environment to make choco command available
+        Update-SessionEnvironment
 
         if (Get-Command choco -ErrorAction SilentlyContinue) {
             Write-Success "Chocolatey installed successfully"
+            choco --version
             return $true
         } else {
-            throw "Chocolatey installation failed"
+            throw "Chocolatey installation failed - command not found after installation"
         }
     }
     catch {

@@ -3,14 +3,13 @@
 #
 # Usage:
 #   Interactive mode: irm https://scripts.vsbtek.com/install | iex
-#   Direct install:   irm https://scripts.vsbtek.com/install | iex -Preset basic
+#   Direct install:   iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic"
 #
 # Author: VSBTek
 # Repository: https://github.com/HenryBui21/VSBTek-Chocolatey-Installer
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet('basic', 'dev', 'community', 'gaming')]
     [string]$Preset = $null
 )
 
@@ -188,6 +187,14 @@ if (-not $Preset) {
             exit 1
         }
     }
+} else {
+    # Validate preset value if provided
+    $validPresets = @('basic', 'dev', 'community', 'gaming')
+    if ($Preset -notin $validPresets) {
+        Write-ErrorMsg "Invalid preset: $Preset"
+        Write-Host "Valid presets are: basic, dev, community, gaming" -ForegroundColor Yellow
+        exit 1
+    }
 }
 
 # Map preset to config file
@@ -294,15 +301,15 @@ if ($failCount -eq 0) {
     If not specified, an interactive menu will be shown.
 
 .EXAMPLE
-    irm https://scripts.vsbtek.com/install-from-web.ps1 | iex
+    irm https://scripts.vsbtek.com/install | iex
     # Interactive mode - shows menu to select preset
 
 .EXAMPLE
-    irm https://scripts.vsbtek.com/install-from-web.ps1 | iex -Preset basic
+    iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic"
     # Install basic apps preset directly
 
 .EXAMPLE
-    irm https://scripts.vsbtek.com/install-from-web.ps1 | iex -Preset dev
+    iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset dev"
     # Install development tools preset
 
 .NOTES

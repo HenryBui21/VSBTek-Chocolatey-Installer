@@ -46,10 +46,10 @@ Execute directly from VSBTek Scripts website:
 irm https://scripts.vsbtek.com/install | iex
 
 # Or install specific preset directly:
-irm https://scripts.vsbtek.com/install | iex -Preset basic
-irm https://scripts.vsbtek.com/install | iex -Preset dev
-irm https://scripts.vsbtek.com/install | iex -Preset community
-irm https://scripts.vsbtek.com/install | iex -Preset gaming
+iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic"
+iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset dev"
+iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset community"
+iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset gaming"
 ```
 
 ⚠️ **Security Warning**: Only execute scripts from trusted sources when using remote execution!

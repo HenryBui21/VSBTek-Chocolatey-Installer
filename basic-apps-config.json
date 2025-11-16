@@ -31,11 +31,6 @@
       "params": []
     },
     {
-      "name": "dotnet3.5",
-      "version": null,
-      "params": []
-    },
-    {
       "name": "patch-my-pc",
       "version": null,
       "params": []

@@ -177,20 +177,59 @@ function Install-Applications {
     )
 
     # Determine mode and load applications
-    $mode = "Hardcoded"
+    $mode = "Interactive"
 
     if ($Applications.Count -eq 0) {
-        # Default application list (for remote execution or no config)
-        $Applications = @(
-            @{ name = 'googlechrome'; version = $null; params = @() },
-            @{ name = 'firefox'; version = $null; params = @() },
-            @{ name = 'vscode'; version = $null; params = @() },
-            @{ name = '7zip'; version = $null; params = @() },
-            @{ name = 'git'; version = $null; params = @('--params', '/GitAndUnixToolsOnPath') },
-            @{ name = 'notepadplusplus'; version = $null; params = @() }
-        )
+        # Show preset selection menu
+        Write-ColorOutput "`n========================================" -Color Magenta
+        Write-ColorOutput "  Select Application Preset" -Color Magenta
+        Write-ColorOutput "========================================" -Color Magenta
+        Write-ColorOutput "1. Basic Apps (Browsers, Office tools, Utilities)" -Color White
+        Write-ColorOutput "2. Development Tools (IDEs, Git, Docker, etc.)" -Color White
+        Write-ColorOutput "3. Community Apps (Social, Communication)" -Color White
+        Write-ColorOutput "4. Gaming (Game clients, Discord)" -Color White
+        Write-ColorOutput "5. Exit" -Color Yellow
+        Write-ColorOutput "========================================`n" -Color Magenta
+
+        $choice = Read-Host "Enter your choice (1-5)"
+
+        switch ($choice) {
+            "1" {
+                $configPath = Join-Path $PSScriptRoot "basic-apps-config.json"
+                $Applications = (Get-ApplicationConfig -ConfigPath $configPath)
+                $mode = "Basic Apps Preset"
+            }
+            "2" {
+                $configPath = Join-Path $PSScriptRoot "dev-tools-config.json"
+                $Applications = (Get-ApplicationConfig -ConfigPath $configPath)
+                $mode = "Development Tools Preset"
+            }
+            "3" {
+                $configPath = Join-Path $PSScriptRoot "community-config.json"
+                $Applications = (Get-ApplicationConfig -ConfigPath $configPath)
+                $mode = "Community Apps Preset"
+            }
+            "4" {
+                $configPath = Join-Path $PSScriptRoot "gaming-config.json"
+                $Applications = (Get-ApplicationConfig -ConfigPath $configPath)
+                $mode = "Gaming Preset"
+            }
+            "5" {
+                Write-Info "Exiting..."
+                exit 0
+            }
+            default {
+                Write-ErrorMsg "Invalid choice. Exiting..."
+                exit 1
+            }
+        }
+
+        if (-not $Applications -or $Applications.Count -eq 0) {
+            Write-ErrorMsg "Failed to load applications from preset"
+            exit 1
+        }
     } else {
-        $mode = "JSON Config"
+        $mode = "Custom JSON Config"
     }
 
     Write-ColorOutput "`n========================================" -Color Magenta

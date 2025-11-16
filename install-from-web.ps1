@@ -1,4 +1,4 @@
-﻿# VSBTek Chocolatey Installer - Web Installer
+# VSBTek Chocolatey Installer - Web Installer
 # This script downloads config files from GitHub and installs applications via Chocolatey
 #
 # Usage:

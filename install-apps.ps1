@@ -5,10 +5,11 @@
 #
 # Usage:
 #   Local interactive:     .\install-apps.ps1
+#   Local with preset:     .\install-apps.ps1 -Preset basic
 #   Local with config:     .\install-apps.ps1 -ConfigFile "basic-apps-config.json"
-#   Management mode:       .\install-apps.ps1 -Action Update
-#   Remote interactive:    iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) }"
-#   Remote with preset:    iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) } -Preset basic -Mode remote"
+#   Management mode:       .\install-apps.ps1 -Action Update -Preset dev
+#   Remote (download):     irm URL -OutFile install-apps.ps1; .\install-apps.ps1
+#   Remote (direct):       iex (irm https://scripts.vsbtek.com/install-apps.ps1)
 
 param(
     [Parameter(Mandatory=$false)]
@@ -865,12 +866,13 @@ if ($KeepWindowOpen) {
     Upgrade all Chocolatey packages
 
 .EXAMPLE
-    iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) }"
-    Remote execution with interactive menu
+    irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1
+    .\install-apps.ps1
+    Download and run with interactive menu
 
 .EXAMPLE
-    iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) } -Preset basic -Mode remote"
-    Remote execution with basic preset
+    iex (irm https://scripts.vsbtek.com/install-apps.ps1)
+    Direct remote execution (interactive mode only)
 
 .NOTES
     Author: VSBTek

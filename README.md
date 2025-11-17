@@ -6,15 +6,22 @@ Công cụ PowerShell tự động cài đặt và quản lý ứng dụng Windo
 
 ### Từ Web (Khuyên dùng)
 
-Truy cập [scripts.vsbtek.com](https://scripts.vsbtek.com) và chọn **install-apps.ps1**, hoặc:
-
+**Cách 1: Tải về và chạy (Tốt nhất)**
 ```powershell
-# Interactive mode với menu
-iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) }"
+# Tải script về và chạy interactive mode
+irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1
+.\install-apps.ps1
 
-# Cài đặt trực tiếp với preset (tải về rồi chạy)
-irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1; .\install-apps.ps1 -Preset basic -Mode remote
+# Hoặc chạy trực tiếp với preset
+irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1
+.\install-apps.ps1 -Preset basic -Mode remote
 ```
+
+**Cách 2: Chạy trực tiếp từ web (Chỉ interactive mode)**
+```powershell
+iex (irm https://scripts.vsbtek.com/install-apps.ps1)
+```
+⚠️ **Lưu ý:** Cách 2 chỉ hỗ trợ interactive mode (menu), không hỗ trợ tham số.
 
 ### Từ Local
 

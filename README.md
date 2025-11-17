@@ -6,7 +6,13 @@ Công cụ PowerShell tự động cài đặt và quản lý ứng dụng Windo
 
 ### Từ Web (Khuyên dùng)
 
-**Cách 1: Tải về và chạy (Tốt nhất)**
+**Cách 1: One-liner siêu ngắn (Nhanh nhất)** ⚡
+```powershell
+irm https://scripts.vsbtek.com/quick-install.ps1 | iex
+```
+✅ **Khuyên dùng** - Lệnh ngắn gọn nhất, tự động tải và chạy interactive mode
+
+**Cách 2: Tải về và chạy (Linh hoạt nhất)**
 ```powershell
 # Tải script về và chạy interactive mode
 irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1
@@ -17,11 +23,10 @@ irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1
 .\install-apps.ps1 -Preset basic -Mode remote
 ```
 
-**Cách 2: One-liner (Tải và chạy ngay)**
+**Cách 3: One-liner với temp folder**
 ```powershell
 irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile "$env:TEMP\install-apps.ps1"; & "$env:TEMP\install-apps.ps1"
 ```
-⚠️ **Lưu ý:** Script tải về thư mục TEMP và tự động chạy với interactive mode.
 
 ### Từ Local
 
@@ -186,6 +191,7 @@ Format file JSON:
 ```
 VSBTek-Chocolatey-Installer/
 ├── install-apps.ps1              # Script chính (all-in-one)
+├── quick-install.ps1             # Wrapper script cho one-liner
 ├── basic-apps-config.json        # 18 ứng dụng cơ bản
 ├── dev-tools-config.json         # 15 dev tools
 ├── community-config.json         # 5 ứng dụng giao tiếp

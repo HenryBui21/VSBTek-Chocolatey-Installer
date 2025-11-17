@@ -67,7 +67,7 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
         $arguments += " -KeepWindowOpen"
     } else {
         # Running from web (irm | iex)
-        $arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"irm $ScriptUrl | iex"
+        $arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& { irm $ScriptUrl | iex }"
         if ($Preset) { $arguments += " -Preset '$Preset'" }
         if ($Mode) { $arguments += " -Mode '$Mode'" }
         if ($Action) { $arguments += " -Action '$Action'" }

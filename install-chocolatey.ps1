@@ -7,9 +7,8 @@
 #   Local interactive:     .\install-chocolatey.ps1
 #   Local with config:     .\install-chocolatey.ps1 -ConfigFile "basic-apps-config.json"
 #   Management mode:       .\install-chocolatey.ps1 -Action Update
-#   Remote interactive:    irm https://scripts.vsbtek.com/install | iex
-#   Remote with preset:    iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic"
-#   Remote with mode:      iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic -Mode remote"
+#   Remote interactive:    iex "& { $(irm https://scripts.vsbtek.com/install) }"
+#   Remote with preset:    iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic -Mode remote"
 
 param(
     [Parameter(Mandatory=$false)]
@@ -66,13 +65,13 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
         if ($Force) { $arguments += " -Force" }
         $arguments += " -KeepWindowOpen"
     } else {
-        # Running from web (irm | iex)
-        $arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& { irm $ScriptUrl | iex }"
+        # Running from web (iex & scriptblock)
+        $arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"iex \`"& { `$(irm $ScriptUrl) }"
         if ($Preset) { $arguments += " -Preset '$Preset'" }
         if ($Mode) { $arguments += " -Mode '$Mode'" }
         if ($Action) { $arguments += " -Action '$Action'" }
         if ($Force) { $arguments += " -Force" }
-        $arguments += " -KeepWindowOpen`""
+        $arguments += " -KeepWindowOpen\`"`""
     }
 
     Start-Process PowerShell.exe -ArgumentList $arguments -Verb RunAs

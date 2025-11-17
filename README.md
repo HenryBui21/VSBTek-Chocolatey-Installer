@@ -10,10 +10,10 @@ Truy cập [scripts.vsbtek.com](https://scripts.vsbtek.com) và chọn **install
 
 ```powershell
 # Interactive mode với menu
-& { irm https://scripts.vsbtek.com/install | iex }
+iex "& { $(irm https://scripts.vsbtek.com/install) }"
 
 # Cài đặt trực tiếp với preset
-& { irm https://scripts.vsbtek.com/install | iex } -Preset basic -Mode remote
+iex "& { $(irm https://scripts.vsbtek.com/install) } -Preset basic -Mode remote"
 ```
 
 ### Từ Local

@@ -736,7 +736,15 @@ if ($Preset) {
     } else {
         # Load from local file
         $configPath = Join-Path $PSScriptRoot $configFile
-        $applications = Get-ApplicationConfig -ConfigPath $configPath
+
+        # If local file doesn't exist, fallback to remote
+        if (-not (Test-Path $configPath)) {
+            Write-WarningMsg "Local config not found, downloading from GitHub..."
+            $configUrl = "$GitHubRepo/$configFile"
+            $applications = Get-WebConfig -ConfigUrl $configUrl
+        } else {
+            $applications = Get-ApplicationConfig -ConfigPath $configPath
+        }
     }
 } elseif ($ConfigFile) {
     # Config file specified
@@ -763,7 +771,15 @@ if ($Preset) {
         $applications = Get-WebConfig -ConfigUrl $configUrl
     } else {
         $configPath = Join-Path $PSScriptRoot $configFile
-        $applications = Get-ApplicationConfig -ConfigPath $configPath
+
+        # If local file doesn't exist, fallback to remote
+        if (-not (Test-Path $configPath)) {
+            Write-WarningMsg "Local config not found, downloading from GitHub..."
+            $configUrl = "$GitHubRepo/$configFile"
+            $applications = Get-WebConfig -ConfigUrl $configUrl
+        } else {
+            $applications = Get-ApplicationConfig -ConfigPath $configPath
+        }
     }
 }
 

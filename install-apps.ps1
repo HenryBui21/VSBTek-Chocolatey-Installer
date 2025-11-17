@@ -39,7 +39,7 @@ param(
 
 # GitHub repository URL for remote mode
 $GitHubRepo = "https://raw.githubusercontent.com/HenryBui21/VSBTek-Chocolatey-Installer/main"
-$ScriptUrl = "https://scripts.vsbtek.com/install"
+$ScriptUrl = "https://scripts.vsbtek.com/install-apps.ps1"
 
 # Script configuration
 $ErrorActionPreference = 'Stop'

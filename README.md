@@ -12,8 +12,8 @@ Truy cập [scripts.vsbtek.com](https://scripts.vsbtek.com) và chọn **install
 # Interactive mode với menu
 iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) }"
 
-# Cài đặt trực tiếp với preset
-iex "& { $(irm https://scripts.vsbtek.com/install-apps.ps1) } -Preset basic -Mode remote"
+# Cài đặt trực tiếp với preset (tải về rồi chạy)
+irm https://scripts.vsbtek.com/install-apps.ps1 -OutFile install-apps.ps1; .\install-apps.ps1 -Preset basic -Mode remote
 ```
 
 ### Từ Local

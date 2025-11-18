@@ -9,8 +9,10 @@ Write-Host "VSBTek Quick Installer" -ForegroundColor Cyan
 Write-Host "Downloading installer script..." -ForegroundColor Yellow
 
 try {
-    # Download the main script
-    $content = Invoke-RestMethod -Uri $scriptUrl -ErrorAction Stop
+    # Download the main script with cache-busting
+    $cacheBuster = [DateTime]::UtcNow.Ticks
+    $urlWithCache = "$scriptUrl?cb=$cacheBuster"
+    $content = Invoke-RestMethod -Uri $urlWithCache -Headers @{"Cache-Control"="no-cache"} -ErrorAction Stop
 
     # Verify it's actually a PowerShell script (not HTML)
     if ($content -match "^\s*<(!DOCTYPE|html|head|body)" -or $content -match "html,\s*body\s*\{") {

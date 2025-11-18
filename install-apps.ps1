@@ -244,7 +244,8 @@ function Test-PackageInstalled {
 
     try {
         # First check via Chocolatey
-        $result = & choco list --local-only --exact $PackageName 2>&1
+        # Note: --local-only was removed in Chocolatey v2+, now using --limit-output
+        $result = & choco list $PackageName --exact --limit-output 2>&1
         if ($LASTEXITCODE -eq 0 -and $result -match $PackageName) {
             return $true
         }
@@ -370,7 +371,8 @@ function Update-ChocoPackage {
     try {
         # For update, ONLY check Chocolatey packages (not Windows Registry)
         # Because we can only update packages installed via Chocolatey
-        $result = & choco list --local-only --exact $PackageName 2>&1
+        # Note: --local-only was removed in Chocolatey v2+, now using --limit-output
+        $result = & choco list $PackageName --exact --limit-output 2>&1
         $isChocoInstalled = $LASTEXITCODE -eq 0 -and $result -match $PackageName
 
         if (-not $isChocoInstalled) {
@@ -460,9 +462,10 @@ function Show-InstalledPackages {
             Write-ColorOutput "  [OK] $appName" -Color Green
 
             try {
-                $versionInfo = & choco list --local-only --exact $appName 2>&1 | Select-String -Pattern "$appName\s+([\d\.]+)"
-                if ($versionInfo) {
-                    $installedVersion = $versionInfo.Matches.Groups[1].Value
+                # Note: --limit-output returns format: packagename|version
+                $versionInfo = & choco list $appName --exact --limit-output 2>&1
+                if ($versionInfo -match "^$appName\|([\d\.]+)") {
+                    $installedVersion = $matches[1]
                     Write-ColorOutput "    Installed: v$installedVersion" -Color Gray
 
                     $appVersion = if ($app.version) { $app.version } else { $app.Version }

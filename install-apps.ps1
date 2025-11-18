@@ -282,31 +282,82 @@ function Test-PackageInstalled {
 
         # Map package names to common display names
         $nameMap = @{
+            # Browsers
             'googlechrome' = @('Google Chrome', 'Chrome')
             'microsoft-edge' = @('Microsoft Edge', 'Edge')
             'firefox' = @('Mozilla Firefox', 'Firefox')
             'brave' = @('Brave', 'Brave Browser')
+
+            # Editors & Tools
             'notepadplusplus' = @('Notepad++')
             'notepadplusplus.install' = @('Notepad++')
             'foxitreader' = @('Foxit Reader', 'Foxit PDF Reader')
+
+            # Remote & System Tools
             'ultraviewer' = @('UltraViewer')
             'treesizefree' = @('TreeSize Free')
+            'patch-my-pc' = @('PatchMyPC', 'Patch My PC')
+
+            # Compression
             '7zip' = @('7-Zip')
             '7zip.install' = @('7-Zip')
             'winrar' = @('WinRAR')
+
+            # Media
             'vlc' = @('VLC media player', 'VLC')
+
+            # Windows Utilities
             'powertoys' = @('PowerToys', 'Microsoft PowerToys')
             'unikey' = @('UniKey')
             'revo-uninstaller' = @('Revo Uninstaller')
             'winaero-tweaker' = @('Winaero Tweaker')
+
+            # .NET Frameworks
+            'dotnet3.5' = @('Microsoft .NET Framework 3.5', '.NET Framework 3.5')
+            'dotnet-8.0-desktopruntime' = @('Microsoft Windows Desktop Runtime - 8.', 'Microsoft .NET Desktop Runtime - 8.')
+            'dotnet-desktopruntime' = @('Microsoft Windows Desktop Runtime', 'Microsoft .NET Desktop Runtime')
+
+            # Development Tools
             'vscode' = @('Microsoft Visual Studio Code', 'Visual Studio Code')
             'git' = @('Git', 'Git version')
             'git.install' = @('Git', 'Git version')
-            'python' = @('Python')
-            'python3' = @('Python')
+            'github-desktop' = @('GitHub Desktop')
+            'curl' = @('curl')
+            'wget' = @('Wget', 'GNU Wget')
+            'powershell-core' = @('PowerShell 7', 'PowerShell Core')
+            'pswindowsupdate' = @('PSWindowsUpdate')
+            'wsl2' = @('Windows Subsystem for Linux')
+            'microsoft-windows-terminal' = @('Windows Terminal', 'Microsoft Windows Terminal')
+            'vscode-python' = @('Python extension for Visual Studio Code')
+
+            # Programming Languages & Runtimes
+            'python' = @('Python 3.', 'Python')
+            'python3' = @('Python 3.', 'Python')
             'nodejs-lts' = @('Node.js')
             'nodejs' = @('Node.js')
+
+            # Containers & Virtualization
             'docker-desktop' = @('Docker Desktop')
+
+            # Communication Tools
+            'microsoft-teams' = @('Microsoft Teams', 'Teams')
+            'zoom' = @('Zoom')
+            'slack' = @('Slack')
+            'zalopc' = @('Zalo')
+            'telegram' = @('Telegram Desktop', 'Telegram')
+            'discord' = @('Discord')
+
+            # Gaming
+            'steam' = @('Steam')
+            'epicgameslauncher' = @('Epic Games Launcher')
+            'obs-studio' = @('OBS Studio')
+            'geforce-experience' = @('NVIDIA GeForce Experience')
+            'msiafterburner' = @('MSI Afterburner')
+
+            # Hardware Monitoring
+            'hwinfo' = @('HWiNFO', 'HWiNFO64')
+            'crystaldiskinfo' = @('CrystalDiskInfo')
+            'cpu-z' = @('CPU-Z')
         }
 
         $searchNames = if ($nameMap.ContainsKey($PackageName.ToLower())) {
@@ -321,7 +372,28 @@ function Test-PackageInstalled {
                     $displayName = $_.DisplayName
                     if ($displayName) {
                         foreach ($name in $searchNames) {
-                            if ($displayName -like "*$name*") {
+                            # Improved matching logic to avoid false positives
+                            # Match if:
+                            # 1. Exact match (case-insensitive)
+                            # 2. Starts with the name
+                            # 3. Contains name with word boundaries (space before/after)
+                            # 4. For wildcard patterns (containing *), use -like
+                            if ($name -match '\*') {
+                                # Pattern contains wildcard, use -like
+                                if ($displayName -like $name) {
+                                    return $true
+                                }
+                            } elseif ($displayName -eq $name) {
+                                # Exact match
+                                return $true
+                            } elseif ($displayName -like "$name *") {
+                                # Starts with name followed by space
+                                return $true
+                            } elseif ($displayName -like "* $name") {
+                                # Ends with name preceded by space
+                                return $true
+                            } elseif ($displayName -like "* $name *") {
+                                # Contains name with spaces on both sides
                                 return $true
                             }
                         }
@@ -391,14 +463,14 @@ function Install-ChocoPackage {
 function Update-ChocoPackage {
     param(
         [string]$PackageName,
-        [string]$Version = $null
+        [string]$Version = $null,
+        [switch]$AllowReinstall
     )
 
     Write-Info "Updating $PackageName..."
 
     try {
-        # For update, ONLY check Chocolatey packages (not Windows Registry)
-        # Because we can only update packages installed via Chocolatey
+        # Check if installed via Chocolatey
         $isChocoInstalled = Test-PackageInstalled -PackageName $PackageName -ChocoOnly
 
         if (-not $isChocoInstalled) {
@@ -406,14 +478,31 @@ function Update-ChocoPackage {
             $installedViaOtherMethods = Test-PackageInstalled -PackageName $PackageName
 
             if ($installedViaOtherMethods) {
-                Write-WarningMsg "$PackageName is installed but NOT via Chocolatey, cannot update"
-                Write-Host "  Suggestion: Uninstall manually and reinstall via Chocolatey" -ForegroundColor Gray
+                Write-WarningMsg "$PackageName is installed via Windows (not Chocolatey)"
+
+                if ($AllowReinstall) {
+                    Write-Info "  Attempting to install via Chocolatey (will coexist or upgrade)..."
+                    $result = Install-ChocoPackage -PackageName $PackageName -Version $Version -ForceInstall $false
+                    if ($result) {
+                        Write-Success "$PackageName now managed by Chocolatey"
+                        return $true
+                    } else {
+                        Write-ErrorMsg "Failed to takeover package management"
+                        return $false
+                    }
+                } else {
+                    Write-Host "  Use Update mode with -Force flag to reinstall via Chocolatey" -ForegroundColor Gray
+                    Write-Host "  Or uninstall manually first and run Install mode" -ForegroundColor Gray
+                    return $false
+                }
             } else {
-                Write-WarningMsg "$PackageName is not installed, skipping update"
+                Write-WarningMsg "$PackageName is not installed"
+                Write-Info "  Installing package instead..."
+                return Install-ChocoPackage -PackageName $PackageName -Version $Version -ForceInstall $false
             }
-            return $false
         }
 
+        # Package is managed by Chocolatey - proceed with normal upgrade
         $chocoArgs = @('upgrade', $PackageName, '-y', '--no-progress')
 
         if ($Version) {
@@ -657,11 +746,19 @@ function Invoke-InstallMode {
 }
 
 function Invoke-UpdateMode {
-    param([array]$Applications)
+    param(
+        [array]$Applications,
+        [bool]$AllowReinstall = $false
+    )
 
     Write-ColorOutput "`n========================================" -Color Magenta
     Write-ColorOutput "  Updating Applications" -Color Magenta
     Write-ColorOutput "========================================`n" -Color Magenta
+
+    if ($AllowReinstall) {
+        Write-Info "Reinstall mode enabled: Will takeover non-Chocolatey installations"
+        Write-Host ""
+    }
 
     $successCount = 0
     $failCount = 0
@@ -670,7 +767,7 @@ function Invoke-UpdateMode {
         $appName = if ($app.name) { $app.name } else { $app.Name }
         $appVersion = if ($app.version) { $app.version } else { $app.Version }
 
-        $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion
+        $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall
 
         if ($updated) {
             $successCount++
@@ -892,7 +989,7 @@ switch ($Action) {
         Invoke-InstallMode -Applications $applications
     }
     'Update' {
-        Invoke-UpdateMode -Applications $applications
+        Invoke-UpdateMode -Applications $applications -AllowReinstall $Force
     }
     'Uninstall' {
         Invoke-UninstallMode -Applications $applications

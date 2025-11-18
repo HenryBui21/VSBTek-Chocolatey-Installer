@@ -240,14 +240,37 @@ function Get-WebConfig {
 # ============================================================================
 
 function Test-PackageInstalled {
-    param([string]$PackageName)
+    param(
+        [string]$PackageName,
+        [switch]$ChocoOnly
+    )
 
     try {
-        # First check via Chocolatey
-        # Note: --local-only was removed in Chocolatey v2+, now using --limit-output
-        $result = & choco list $PackageName --exact --limit-output 2>&1
-        if ($LASTEXITCODE -eq 0 -and $result -match $PackageName) {
+        # Check via Chocolatey first
+        # Note: In Chocolatey v2+, use --limit-output which returns format: packagename|version
+        $result = & choco list --limit-output 2>&1
+
+        # Parse the output to find exact package match
+        $chocoInstalled = $false
+        if ($LASTEXITCODE -eq 0 -and $result) {
+            foreach ($line in $result) {
+                if ($line -match "^([^|]+)\|(.+)$") {
+                    $installedPackage = $matches[1]
+                    if ($installedPackage -eq $PackageName) {
+                        $chocoInstalled = $true
+                        break
+                    }
+                }
+            }
+        }
+
+        if ($chocoInstalled) {
             return $true
+        }
+
+        # If ChocoOnly flag is set, only check Chocolatey
+        if ($ChocoOnly) {
+            return $false
         }
 
         # Check Windows installed programs registry
@@ -264,10 +287,12 @@ function Test-PackageInstalled {
             'firefox' = @('Mozilla Firefox', 'Firefox')
             'brave' = @('Brave', 'Brave Browser')
             'notepadplusplus' = @('Notepad++')
+            'notepadplusplus.install' = @('Notepad++')
             'foxitreader' = @('Foxit Reader', 'Foxit PDF Reader')
             'ultraviewer' = @('UltraViewer')
             'treesizefree' = @('TreeSize Free')
             '7zip' = @('7-Zip')
+            '7zip.install' = @('7-Zip')
             'winrar' = @('WinRAR')
             'vlc' = @('VLC media player', 'VLC')
             'powertoys' = @('PowerToys', 'Microsoft PowerToys')
@@ -276,8 +301,11 @@ function Test-PackageInstalled {
             'winaero-tweaker' = @('Winaero Tweaker')
             'vscode' = @('Microsoft Visual Studio Code', 'Visual Studio Code')
             'git' = @('Git', 'Git version')
+            'git.install' = @('Git', 'Git version')
             'python' = @('Python')
+            'python3' = @('Python')
             'nodejs-lts' = @('Node.js')
+            'nodejs' = @('Node.js')
             'docker-desktop' = @('Docker Desktop')
         }
 
@@ -371,12 +399,10 @@ function Update-ChocoPackage {
     try {
         # For update, ONLY check Chocolatey packages (not Windows Registry)
         # Because we can only update packages installed via Chocolatey
-        # Note: --local-only was removed in Chocolatey v2+, now using --limit-output
-        $result = & choco list $PackageName --exact --limit-output 2>&1
-        $isChocoInstalled = $LASTEXITCODE -eq 0 -and $result -match $PackageName
+        $isChocoInstalled = Test-PackageInstalled -PackageName $PackageName -ChocoOnly
 
         if (-not $isChocoInstalled) {
-            # Check if installed via other methods
+            # Check if installed via other methods (Windows Registry)
             $installedViaOtherMethods = Test-PackageInstalled -PackageName $PackageName
 
             if ($installedViaOtherMethods) {
@@ -454,28 +480,36 @@ function Show-InstalledPackages {
     Write-ColorOutput "  Installed Applications Status" -Color Magenta
     Write-ColorOutput "========================================`n" -Color Magenta
 
+    # Get all Chocolatey packages once to improve performance
+    $chocoList = & choco list --limit-output 2>&1
+    $chocoPackages = @{}
+    if ($LASTEXITCODE -eq 0 -and $chocoList) {
+        foreach ($line in $chocoList) {
+            if ($line -match "^([^|]+)\|(.+)$") {
+                $chocoPackages[$matches[1]] = $matches[2]
+            }
+        }
+    }
+
     foreach ($app in $Applications) {
         $appName = if ($app.name) { $app.name } else { $app.Name }
         $isInstalled = Test-PackageInstalled -PackageName $appName
+        $isChocoInstalled = $chocoPackages.ContainsKey($appName)
 
         if ($isInstalled) {
-            Write-ColorOutput "  [OK] $appName" -Color Green
+            $statusText = if ($isChocoInstalled) { "[OK]" } else { "[OK*]" }
+            Write-ColorOutput "  $statusText $appName" -Color Green
 
-            try {
-                # Note: --limit-output returns format: packagename|version
-                $versionInfo = & choco list $appName --exact --limit-output 2>&1
-                if ($versionInfo -match "^$appName\|([\d\.]+)") {
-                    $installedVersion = $matches[1]
-                    Write-ColorOutput "    Installed: v$installedVersion" -Color Gray
+            if ($isChocoInstalled) {
+                $installedVersion = $chocoPackages[$appName]
+                Write-ColorOutput "    Chocolatey: v$installedVersion" -Color Gray
 
-                    $appVersion = if ($app.version) { $app.version } else { $app.Version }
-                    if ($appVersion -and $appVersion -ne $installedVersion) {
-                        Write-ColorOutput "    Config: v$appVersion" -Color Yellow
-                    }
+                $appVersion = if ($app.version) { $app.version } else { $app.Version }
+                if ($appVersion -and $appVersion -ne $installedVersion) {
+                    Write-ColorOutput "    Config: v$appVersion" -Color Yellow
                 }
-            }
-            catch {
-                # Ignore version check errors
+            } else {
+                Write-ColorOutput "    Installed via Windows (not Chocolatey)" -Color Gray
             }
         } else {
             Write-ColorOutput "  [X] $appName" -Color Red
@@ -484,6 +518,11 @@ function Show-InstalledPackages {
 
         Write-Host ""
     }
+
+    Write-ColorOutput "`nLegend:" -Color Cyan
+    Write-ColorOutput "  [OK]  = Installed via Chocolatey" -Color Gray
+    Write-ColorOutput "  [OK*] = Installed via Windows (cannot update via Chocolatey)" -Color Gray
+    Write-ColorOutput "  [X]   = Not installed" -Color Gray
 }
 
 function Invoke-UpgradeAll {

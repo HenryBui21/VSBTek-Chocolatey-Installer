@@ -26,6 +26,11 @@
       "params": []
     },
     {
+      "name": "pdf24",
+      "version": null,
+      "params": []
+    },
+    {
       "name": "dotnet3.5",
       "version": null,
       "params": []

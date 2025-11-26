@@ -51,11 +51,6 @@
       "params": []
     },
     {
-      "name": "chocolatey",
-      "version": null,
-      "params": []
-    },
-    {
       "name": "wsl2",
       "version": null,
       "params": []

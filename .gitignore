@@ -1,0 +1,56 @@
+# Node
+node_modules/
+.npmrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env / secrets
+.env
+.env.*.local
+*.local
+
+# User data (contains passwords)
+users.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Caches and coverage
+.cache/
+.parcel-cache/
+.eslintcache
+stylelintcache
+coverage/
+.tmp/
+tmp/
+
+# Builds/outputs (none currently, but safe defaults)
+dist/
+build/
+out/
+
+# Misc
+*.log
+*.tar
+*.tar.gz
+*.tgz
+
+# Windows
+.vs/
+
+# Cloudflare/Workers (not used for Pages static, but ignore if present)
+.wrangler/
+
+# Local server files should remain tracked (server.js, scripts/) for development
+# DO NOT ignore: server.js, scripts/, scripts.json, _redirects, index.html
+
+
+

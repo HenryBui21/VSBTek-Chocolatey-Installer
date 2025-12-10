@@ -2,6 +2,20 @@
 
 Công cụ PowerShell tự động cài đặt và quản lý ứng dụng Windows qua Chocolatey với hỗ trợ remote execution và preset configurations.
 
+## Yêu cầu hệ thống
+
+- **Operating System**: Windows 10/11 hoặc Windows Server 2016+
+- **PowerShell**: Version 5.1 trở lên (đã có sẵn trong Windows 10/11)
+- **Execution Policy**: Cần quyền chạy scripts (script sẽ tự động xử lý)
+- **Administrator Rights**: Bắt buộc (script sẽ tự động yêu cầu elevation)
+- **Internet Connection**: Cần thiết để tải packages từ Chocolatey repository
+- **.NET Framework**: .NET 4.8+ (thường đã có sẵn trên Windows 10/11)
+
+**Kiểm tra PowerShell version:**
+```powershell
+$PSVersionTable.PSVersion
+```
+
 ## Cài đặt nhanh
 
 ### Từ Web (Khuyên dùng)
@@ -220,6 +234,173 @@ refreshenv
 **Tìm package trên Chocolatey:**
 
 - [https://community.chocolatey.org/packages](https://community.chocolatey.org/packages)
+
+## Xử lý sự cố
+
+### Lỗi thường gặp
+
+#### 1. "Execution Policy không cho phép chạy script"
+
+**Triệu chứng:**
+
+```
+File cannot be loaded because running scripts is disabled on this system
+```
+
+**Giải pháp:**
+
+```powershell
+# Tạm thời cho phép chạy script (khuyên dùng)
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+
+# Hoặc set cho current user
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+```
+
+#### 2. "Chocolatey installation failed"
+
+**Nguyên nhân:** Firewall/antivirus chặn, hoặc lỗi kết nối internet
+
+**Giải pháp:**
+
+```powershell
+# Kiểm tra kết nối đến Chocolatey
+Test-NetConnection -ComputerName chocolatey.org -Port 443
+
+# Cài Chocolatey thủ công
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+```
+
+#### 3. "Package installation failed (exit code: 1)"
+
+**Nguyên nhân:**
+
+- Package không tồn tại trên Chocolatey
+- Xung đột với phiên bản đã cài
+- Thiếu dependencies
+
+**Giải pháp:**
+
+```powershell
+# Kiểm tra package có tồn tại không
+choco search <package-name>
+
+# Xem thông tin chi tiết
+choco info <package-name>
+
+# Thử cài với verbose để xem lỗi chi tiết
+choco install <package-name> -y -v
+
+# Force reinstall nếu đã cài
+choco install <package-name> -y --force
+```
+
+#### 4. "SHA256 checksum mismatch" (Quick Install)
+
+**Nguyên nhân:** File bị thay đổi hoặc corrupted trong quá trình download
+
+**Giải pháp:**
+
+```powershell
+# Thử download lại
+irm https://raw.githubusercontent.com/HenryBui21/VSBTek-Chocolatey-Installer/main/quick-install.ps1 | iex
+
+# Hoặc dùng local install
+git clone https://github.com/HenryBui21/VSBTek-Chocolatey-Installer.git
+cd VSBTek-Chocolatey-Installer
+.\install-apps.ps1
+```
+
+#### 5. "Access denied" hoặc "Administrator privileges required"
+
+**Nguyên nhân:** Script không chạy với quyền admin
+
+**Giải pháp:**
+
+```powershell
+# Chạy PowerShell as Administrator
+# Cách 1: Right-click PowerShell → Run as Administrator
+# Cách 2: Từ Win+X → Windows PowerShell (Admin)
+
+# Script sẽ tự động request elevation, nhưng nếu không:
+Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+```
+
+#### 6. "Package đã cài nhưng script không detect được"
+
+**Nguyên nhân:**
+
+- Cài từ nguồn khác (MSI, EXE installer)
+- Registry detection chưa cover package đó
+
+**Giải pháp:**
+
+```powershell
+# Kiểm tra Chocolatey có biết package không
+choco list --local-only | Select-String <package-name>
+
+# Nếu không có trong Chocolatey, reinstall qua Chocolatey
+choco install <package-name> -y --force
+```
+
+#### 7. "Config file không load được"
+
+**Nguyên nhân:** JSON syntax error hoặc file không tồn tại
+
+**Giải pháp:**
+
+```powershell
+# Validate JSON syntax
+Get-Content your-config.json | ConvertFrom-Json
+
+# Hoặc dùng online validator: https://jsonlint.com
+```
+
+Đảm bảo format đúng:
+
+```json
+{
+  "applications": [
+    {
+      "name": "package-name",
+      "version": null,
+      "params": []
+    }
+  ]
+}
+```
+
+### Troubleshooting Commands
+
+```powershell
+# Kiểm tra Chocolatey đã cài chưa
+choco --version
+
+# List tất cả packages đã cài
+choco list --local-only
+
+# Kiểm tra update có sẵn
+choco outdated
+
+# Xem logs chi tiết
+Get-Content "$env:ChocolateyInstall\logs\chocolatey.log" -Tail 50
+
+# Reset Chocolatey cache
+choco list --refresh
+
+# Repair Chocolatey installation
+choco upgrade chocolatey -y
+```
+
+### Vấn đề khác
+
+Nếu bạn gặp vấn đề không nằm trong list trên:
+
+1. **Kiểm tra logs**: Script có verbose error messages
+2. **Chạy với -Verbose**: `.\install-apps.ps1 -Verbose`
+3. **Báo lỗi tại**: [GitHub Issues](https://github.com/HenryBui21/VSBTek-Chocolatey-Installer/issues)
+4. **Chocolatey Docs**: [https://docs.chocolatey.org/en-us/troubleshooting](https://docs.chocolatey.org/en-us/troubleshooting)
 
 ## Tài nguyên
 

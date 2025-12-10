@@ -64,11 +64,6 @@
       "name": "vscode-python",
       "version": null,
       "params": []
-    },
-    {
-      "name": "notepadplusplus",
-      "version": null,
-      "params": []
     }
   ]
 }

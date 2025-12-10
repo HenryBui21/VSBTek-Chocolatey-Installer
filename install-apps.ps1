@@ -177,7 +177,14 @@ function Install-Chocolatey {
 
     try {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+        # Create WebClient with timeout
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+
+        # Download and execute Chocolatey install script with timeout (60 seconds)
+        $installScript = $webClient.DownloadString('https://community.chocolatey.org/install.ps1')
+        Invoke-Expression $installScript
 
         Update-SessionEnvironment
 
@@ -231,7 +238,13 @@ function Get-WebConfig {
 
     try {
         Write-Info "Downloading configuration from: $ConfigUrl"
-        $jsonContent = (New-Object System.Net.WebClient).DownloadString($ConfigUrl)
+
+        # Create WebClient with timeout
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+
+        # Download config with timeout (30 seconds implicit)
+        $jsonContent = $webClient.DownloadString($ConfigUrl)
         $config = $jsonContent | ConvertFrom-Json
 
         if (-not $config.applications) {
@@ -571,12 +584,23 @@ function Install-ChocoPackage {
 
         $null = & choco @chocoArgs 2>&1
 
+        # Chocolatey exit codes:
+        # 0 = success
+        # 1 = general error
+        # 3010 = success, reboot required
+        # Other non-zero = various errors
         if ($LASTEXITCODE -eq 0) {
             Write-Success "$PackageName installed successfully"
             return $true
-        } else {
-            Write-WarningMsg "$PackageName may have already been installed or encountered a non-critical issue"
+        } elseif ($LASTEXITCODE -eq 3010) {
+            Write-Success "$PackageName installed successfully (reboot required)"
             return $true
+        } elseif ($LASTEXITCODE -eq 1641) {
+            Write-Success "$PackageName installed successfully (reboot initiated)"
+            return $true
+        } else {
+            Write-ErrorMsg "$PackageName installation failed (exit code: $LASTEXITCODE)"
+            return $false
         }
     }
     catch {
@@ -637,12 +661,26 @@ function Update-ChocoPackage {
 
         $null = & choco @chocoArgs 2>&1
 
+        # Chocolatey exit codes:
+        # 0 = success (package updated)
+        # 2 = no update available (already latest)
+        # 3010 = success, reboot required
+        # Other non-zero = errors
         if ($LASTEXITCODE -eq 0) {
             Write-Success "$PackageName updated successfully"
             return $true
-        } else {
-            Write-WarningMsg "$PackageName may already be at the latest version"
+        } elseif ($LASTEXITCODE -eq 2) {
+            Write-Info "$PackageName is already at the latest version"
             return $true
+        } elseif ($LASTEXITCODE -eq 3010) {
+            Write-Success "$PackageName updated successfully (reboot required)"
+            return $true
+        } elseif ($LASTEXITCODE -eq 1641) {
+            Write-Success "$PackageName updated successfully (reboot initiated)"
+            return $true
+        } else {
+            Write-ErrorMsg "$PackageName update failed (exit code: $LASTEXITCODE)"
+            return $false
         }
     }
     catch {
@@ -778,63 +816,67 @@ function Show-ContinuePrompt {
 }
 
 function Show-MainMenu {
-    Write-ColorOutput "`n========================================" -Color Cyan
-    Write-ColorOutput "  VSBTek Chocolatey Manager" -Color Cyan
-    Write-ColorOutput "========================================" -Color Cyan
-    Write-Host ""
-    Write-Host "  1. Install applications (from preset)"
-    Write-Host "  2. Update applications"
-    Write-Host "  3. Uninstall applications"
-    Write-Host "  4. List installed applications"
-    Write-Host "  5. Upgrade all Chocolatey packages"
-    Write-Host "  6. Exit"
-    Write-Host ""
+    while ($true) {
+        Write-ColorOutput "`n========================================" -Color Cyan
+        Write-ColorOutput "  VSBTek Chocolatey Manager" -Color Cyan
+        Write-ColorOutput "========================================" -Color Cyan
+        Write-Host ""
+        Write-Host "  1. Install applications (from preset)"
+        Write-Host "  2. Update applications"
+        Write-Host "  3. Uninstall applications"
+        Write-Host "  4. List installed applications"
+        Write-Host "  5. Upgrade all Chocolatey packages"
+        Write-Host "  6. Exit"
+        Write-Host ""
 
-    $choice = Read-Host "Enter your choice (1-6)"
+        $choice = Read-Host "Enter your choice (1-6)"
 
-    switch ($choice) {
-        '1' { return 'Install' }
-        '2' { return 'Update' }
-        '3' { return 'Uninstall' }
-        '4' { return 'List' }
-        '5' { return 'Upgrade' }
-        '6' {
-            Write-Info "Exiting..."
-            exit 0
-        }
-        default {
-            Write-ErrorMsg "Invalid choice. Please try again."
-            return Show-MainMenu
+        switch ($choice) {
+            '1' { return 'Install' }
+            '2' { return 'Update' }
+            '3' { return 'Uninstall' }
+            '4' { return 'List' }
+            '5' { return 'Upgrade' }
+            '6' {
+                Write-Info "Exiting..."
+                exit 0
+            }
+            default {
+                Write-ErrorMsg "Invalid choice. Please try again."
+                # Continue loop for retry
+            }
         }
     }
 }
 
 function Show-PresetMenu {
-    Write-ColorOutput "`n========================================" -Color Cyan
-    Write-ColorOutput "  Select Application Preset" -Color Cyan
-    Write-ColorOutput "========================================" -Color Cyan
-    Write-Host ""
-    Write-Host "  1. Basic Apps (18 apps) - Browsers, utilities, tools"
-    Write-Host "  2. Dev Tools (15 apps) - IDEs, Git, Docker, etc."
-    Write-Host "  3. Community (5 apps) - Teams, Zoom, Slack, etc."
-    Write-Host "  4. Gaming (10 apps) - Steam, Discord, OBS, etc."
-    Write-Host "  5. Cancel"
-    Write-Host ""
+    while ($true) {
+        Write-ColorOutput "`n========================================" -Color Cyan
+        Write-ColorOutput "  Select Application Preset" -Color Cyan
+        Write-ColorOutput "========================================" -Color Cyan
+        Write-Host ""
+        Write-Host "  1. Basic Apps (18 apps) - Browsers, utilities, tools"
+        Write-Host "  2. Dev Tools (13 apps) - IDEs, Git, Docker, etc."
+        Write-Host "  3. Community (4 apps) - Teams, Zoom, Telegram, Zalo"
+        Write-Host "  4. Gaming (9 apps) - Steam, Discord, OBS, etc."
+        Write-Host "  5. Cancel"
+        Write-Host ""
 
-    $choice = Read-Host "Enter your choice (1-5)"
+        $choice = Read-Host "Enter your choice (1-5)"
 
-    switch ($choice) {
-        '1' { return 'basic' }
-        '2' { return 'dev' }
-        '3' { return 'community' }
-        '4' { return 'gaming' }
-        '5' {
-            Write-Info "Cancelled"
-            exit 0
-        }
-        default {
-            Write-ErrorMsg "Invalid choice. Please try again."
-            return Show-PresetMenu
+        switch ($choice) {
+            '1' { return 'basic' }
+            '2' { return 'dev' }
+            '3' { return 'community' }
+            '4' { return 'gaming' }
+            '5' {
+                Write-Info "Cancelled"
+                exit 0
+            }
+            default {
+                Write-ErrorMsg "Invalid choice. Please try again."
+                # Continue loop for retry
+            }
         }
     }
 }
@@ -852,11 +894,16 @@ function Invoke-InstallMode {
 
     $successCount = 0
     $failCount = 0
+    $totalCount = $Applications.Count
+    $currentIndex = 0
 
     foreach ($app in $Applications) {
+        $currentIndex++
         $appName = if ($app.name) { $app.name } else { $app.Name }
         $appVersion = if ($app.version) { $app.version } else { $app.Version }
         $appParams = if ($app.params) { $app.params } else { if ($app.Params) { $app.Params } else { @() } }
+
+        Write-ColorOutput "`n[$currentIndex/$totalCount] Processing: $appName" -Color Cyan
 
         $installed = Install-ChocoPackage -PackageName $appName -Version $appVersion -Params $appParams -ForceInstall $Force
 
@@ -901,10 +948,15 @@ function Invoke-UpdateMode {
 
     $successCount = 0
     $failCount = 0
+    $totalCount = $Applications.Count
+    $currentIndex = 0
 
     foreach ($app in $Applications) {
+        $currentIndex++
         $appName = if ($app.name) { $app.name } else { $app.Name }
         $appVersion = if ($app.version) { $app.version } else { $app.Version }
+
+        Write-ColorOutput "`n[$currentIndex/$totalCount] Processing: $appName" -Color Cyan
 
         $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall
 
@@ -942,9 +994,15 @@ function Invoke-UninstallMode {
 
     $successCount = 0
     $failCount = 0
+    $totalCount = $Applications.Count
+    $currentIndex = 0
 
     foreach ($app in $Applications) {
+        $currentIndex++
         $appName = if ($app.name) { $app.name } else { $app.Name }
+
+        Write-ColorOutput "`n[$currentIndex/$totalCount] Processing: $appName" -Color Cyan
+
         $uninstalled = Uninstall-ChocoPackage -PackageName $appName -ForceUninstall $Force
 
         if ($uninstalled) {

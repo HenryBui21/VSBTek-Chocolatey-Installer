@@ -370,59 +370,211 @@ function Show-CustomSelectionMenu {
         return $null
     }
 
-    # Try Out-GridView first (GUI mode)
-    $supportsGridView = $true
+    # Try Windows Forms CheckedListBox first (best UX - real checkboxes!)
+    $supportsWinForms = $true
     try {
-        # Test if Out-GridView is available
-        $null = Get-Command Out-GridView -ErrorAction Stop
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
     }
     catch {
-        $supportsGridView = $false
+        $supportsWinForms = $false
     }
 
-    if ($supportsGridView) {
-        Write-Info "Opening selection window (Out-GridView)..."
-        Write-Host "  - Use checkboxes to select apps"
-        Write-Host "  - Use search box to filter"
+    if ($supportsWinForms) {
+        Write-Info "Opening checkbox selection window..."
+        Write-Host "  - Check/uncheck apps you want to install"
+        Write-Host "  - Use 'Select All' / 'Deselect All' buttons"
         Write-Host "  - Click OK when done"
         Write-Host ""
 
         try {
-            $selected = $allApps | Select-Object DisplayName, Category, Name, Version |
-                Out-GridView -Title "Select Applications to Install (use Ctrl+Click for multiple)" -PassThru
-
-            if ($selected) {
-                # Convert back to application objects
-                $selectedApps = @()
-                foreach ($item in $selected) {
-                    $app = $allApps | Where-Object { $_.Name -eq $item.Name }
-                    if ($app) {
-                        $selectedApps += [PSCustomObject]@{
-                            name = $app.Name
-                            version = $app.Version
-                            params = $app.Params
-                        }
-                    }
-                }
-
+            $selectedApps = Show-CheckboxSelectionForm -Apps $allApps
+            if ($selectedApps) {
                 Write-Success "Selected $($selectedApps.Count) applications"
                 return $selectedApps
             } else {
-                Write-Info "No applications selected"
+                Write-Info "No applications selected or cancelled"
                 return $null
             }
         }
         catch {
-            Write-WarningMsg "Out-GridView failed: $($_.Exception.Message)"
-            Write-Info "Falling back to text-based selection..."
-            $supportsGridView = $false
+            Write-WarningMsg "Windows Forms failed: $($_.Exception.Message)"
+            Write-Info "Falling back to Out-GridView..."
+            $supportsWinForms = $false
         }
     }
 
-    # Fallback: Text-based selection
-    if (-not $supportsGridView) {
-        return Show-TextBasedSelection -Apps $allApps
+    # Fallback 1: Out-GridView
+    if (-not $supportsWinForms) {
+        $supportsGridView = $true
+        try {
+            $null = Get-Command Out-GridView -ErrorAction Stop
+        }
+        catch {
+            $supportsGridView = $false
+        }
+
+        if ($supportsGridView) {
+            Write-Info "Opening selection window (Out-GridView)..."
+            Write-Host "  - Use Ctrl+Click to select multiple apps"
+            Write-Host "  - Use search box to filter"
+            Write-Host "  - Click OK when done"
+            Write-Host ""
+
+            try {
+                $selected = $allApps | Select-Object DisplayName, Category, Name, Version |
+                    Out-GridView -Title "Select Applications to Install (use Ctrl+Click for multiple)" -PassThru
+
+                if ($selected) {
+                    $selectedApps = @()
+                    foreach ($item in $selected) {
+                        $app = $allApps | Where-Object { $_.Name -eq $item.Name }
+                        if ($app) {
+                            $selectedApps += [PSCustomObject]@{
+                                name = $app.Name
+                                version = $app.Version
+                                params = $app.Params
+                            }
+                        }
+                    }
+
+                    Write-Success "Selected $($selectedApps.Count) applications"
+                    return $selectedApps
+                } else {
+                    Write-Info "No applications selected"
+                    return $null
+                }
+            }
+            catch {
+                Write-WarningMsg "Out-GridView failed: $($_.Exception.Message)"
+                Write-Info "Falling back to text-based selection..."
+                $supportsGridView = $false
+            }
+        }
     }
+
+    # Fallback 2: Text-based selection
+    return Show-TextBasedSelection -Apps $allApps
+}
+
+function Show-CheckboxSelectionForm {
+    param([array]$Apps)
+
+    # Create form
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Select Applications to Install"
+    $form.Size = New-Object System.Drawing.Size(800, 600)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = 'FixedDialog'
+    $form.MaximizeBox = $false
+
+    # Create label
+    $label = New-Object System.Windows.Forms.Label
+    $label.Location = New-Object System.Drawing.Point(10, 10)
+    $label.Size = New-Object System.Drawing.Size(760, 20)
+    $label.Text = "Check the applications you want to install:"
+    $form.Controls.Add($label)
+
+    # Create CheckedListBox
+    $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
+    $checkedListBox.Location = New-Object System.Drawing.Point(10, 35)
+    $checkedListBox.Size = New-Object System.Drawing.Size(760, 450)
+    $checkedListBox.CheckOnClick = $true
+
+    # Group apps by category and add to list
+    $groupedApps = $Apps | Group-Object -Property Category | Sort-Object Name
+    $appLookup = @{}
+    $index = 0
+
+    foreach ($group in $groupedApps) {
+        # Add category header (disabled, just for visual)
+        $headerIndex = $checkedListBox.Items.Add("═══ $($group.Name) ═══")
+        $checkedListBox.SetItemCheckState($headerIndex, 'Indeterminate')
+
+        # Add apps in this category
+        foreach ($app in ($group.Group | Sort-Object Name)) {
+            $displayText = "    $($app.Name)"
+            if ($app.Version) {
+                $displayText += " (v$($app.Version))"
+            }
+            $itemIndex = $checkedListBox.Items.Add($displayText)
+            $appLookup[$itemIndex] = $app
+            $index++
+        }
+    }
+
+    $form.Controls.Add($checkedListBox)
+
+    # Create buttons panel
+    $buttonPanel = New-Object System.Windows.Forms.Panel
+    $buttonPanel.Location = New-Object System.Drawing.Point(10, 495)
+    $buttonPanel.Size = New-Object System.Drawing.Size(760, 50)
+
+    # Select All button
+    $selectAllButton = New-Object System.Windows.Forms.Button
+    $selectAllButton.Location = New-Object System.Drawing.Point(0, 10)
+    $selectAllButton.Size = New-Object System.Drawing.Size(100, 30)
+    $selectAllButton.Text = "Select All"
+    $selectAllButton.Add_Click({
+        for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
+            if ($appLookup.ContainsKey($i)) {
+                $checkedListBox.SetItemChecked($i, $true)
+            }
+        }
+    })
+    $buttonPanel.Controls.Add($selectAllButton)
+
+    # Deselect All button
+    $deselectAllButton = New-Object System.Windows.Forms.Button
+    $deselectAllButton.Location = New-Object System.Drawing.Point(110, 10)
+    $deselectAllButton.Size = New-Object System.Drawing.Size(100, 30)
+    $deselectAllButton.Text = "Deselect All"
+    $deselectAllButton.Add_Click({
+        for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
+            $checkedListBox.SetItemChecked($i, $false)
+        }
+    })
+    $buttonPanel.Controls.Add($deselectAllButton)
+
+    # OK button
+    $okButton = New-Object System.Windows.Forms.Button
+    $okButton.Location = New-Object System.Drawing.Point(550, 10)
+    $okButton.Size = New-Object System.Drawing.Size(100, 30)
+    $okButton.Text = "OK"
+    $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $buttonPanel.Controls.Add($okButton)
+
+    # Cancel button
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Location = New-Object System.Drawing.Point(660, 10)
+    $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
+    $cancelButton.Text = "Cancel"
+    $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $buttonPanel.Controls.Add($cancelButton)
+
+    $form.Controls.Add($buttonPanel)
+    $form.AcceptButton = $okButton
+    $form.CancelButton = $cancelButton
+
+    # Show form and get result
+    $result = $form.ShowDialog()
+
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        $selectedApps = @()
+        foreach ($i in $checkedListBox.CheckedIndices) {
+            if ($appLookup.ContainsKey($i)) {
+                $app = $appLookup[$i]
+                $selectedApps += [PSCustomObject]@{
+                    name = $app.Name
+                    version = $app.Version
+                    params = $app.Params
+                }
+            }
+        }
+        return $selectedApps
+    }
+
+    return $null
 }
 
 function Show-TextBasedSelection {

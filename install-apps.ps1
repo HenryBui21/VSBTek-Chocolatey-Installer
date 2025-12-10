@@ -328,10 +328,13 @@ function Get-AllAvailableApps {
             } else {
                 $configPath = Join-Path $PSScriptRoot $configFileName
                 if (-not (Test-Path $configPath)) {
-                    Write-WarningMsg "Local config not found: $configFileName, skipping..."
-                    continue
+                    Write-WarningMsg "Local config not found: $configFileName, trying remote..."
+                    # Fallback to remote if local not found
+                    $configUrl = "$GitHubRepo/$configFileName"
+                    $apps = Get-WebConfig -ConfigUrl $configUrl
+                } else {
+                    $apps = Get-ApplicationConfig -ConfigPath $configPath
                 }
-                $apps = Get-ApplicationConfig -ConfigPath $configPath
             }
 
             if ($apps) {
@@ -351,6 +354,12 @@ function Get-AllAvailableApps {
         }
     }
 
+    if ($allApps.Count -eq 0) {
+        Write-ErrorMsg "No applications found in any preset"
+        Write-ErrorMsg "Please check your internet connection or config files"
+        return $null
+    }
+
     Write-Success "Loaded $($allApps.Count) applications from all presets"
     return $allApps
 }
@@ -366,7 +375,12 @@ function Show-CustomSelectionMenu {
     $allApps = Get-AllAvailableApps -Mode $Mode
 
     if (-not $allApps -or $allApps.Count -eq 0) {
-        Write-ErrorMsg "No applications found in presets"
+        Write-ErrorMsg "No applications found in configuration"
+        Write-Host ""
+        Write-Host "Please ensure:" -ForegroundColor Yellow
+        Write-Host "  1. Config files exist in script directory, OR" -ForegroundColor Gray
+        Write-Host "  2. You have internet connection for remote mode" -ForegroundColor Gray
+        Write-Host ""
         return $null
     }
 

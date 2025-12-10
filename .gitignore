@@ -20,13 +20,12 @@ Desktop.ini
 # PowerShell
 *.ps1.bak
 
-# Testing/utility scripts (local only)
-verify-hash.ps1
-verify-github-hash.ps1
-check-github-sync.ps1
-simulate-quick-install.ps1
-update-sha256.ps1
+# Development scripts (local only, but keep README.md)
+scripts/utils/
+scripts/tests/
+!scripts/README.md
 test-*.ps1
+manifest.json
 
 # IDE and Editor Settings (user-specific)
 .vscode/

@@ -209,12 +209,40 @@ Format file JSON:
 ```
 VSBTek-Chocolatey-Installer/
 ├── install-apps.ps1              # Script chính (all-in-one)
-├── quick-install.ps1             # Wrapper script cho one-liner
+├── install-apps.ps1.sha256       # SHA256 hash cho security verification
+├── quick-install.ps1             # Wrapper script cho one-liner với SHA256 check
+├── setup-dev.ps1                 # Quick development environment setup
+│
 ├── basic-apps-config.json        # 18 ứng dụng cơ bản
 ├── dev-tools-config.json         # 15 dev tools
 ├── community-config.json         # 5 ứng dụng giao tiếp
-└── gaming-config.json            # 10 gaming apps
+├── gaming-config.json            # 10 gaming apps
+│
+├── docs/                         # Documentation
+│   └── AUTOMATION-README.md      # Hướng dẫn automation & hash verification
+│
+└── scripts/                      # Development scripts (ignored in git)
+    ├── README.md                 # Scripts documentation
+    ├── utils/                    # Development utilities
+    │   ├── update-sha256.ps1     # Manual hash updater
+    │   ├── install-git-hooks.ps1 # Git hooks installer
+    │   ├── create-manifest.ps1   # Create file manifest
+    │   └── verify-manifest.ps1   # Verify all files
+    │
+    └── tests/                    # Testing scripts
+        ├── verify-hash.ps1       # Verify local hash
+        ├── verify-github-hash.ps1 # Compare with GitHub
+        ├── check-github-sync.ps1  # Check GitHub sync status
+        └── simulate-quick-install.ps1 # End-to-end simulation
 ```
+
+### Dành cho Developers
+
+Nếu bạn muốn contribute hoặc develop locally:
+
+1. **Quick setup**: Chạy `.\setup-dev.ps1` để setup Git hooks và verify structure
+2. **Documentation**: Xem [docs/AUTOMATION-README.md](docs/AUTOMATION-README.md) để hiểu về automation system
+3. **Scripts**: Development utilities và tests nằm trong `scripts/` (local only, không commit lên Git)
 
 ## Xử lý sự cố
 

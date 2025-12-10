@@ -12,6 +12,7 @@ apps-config.local.json
 # Windows
 Thumbs.db
 Desktop.ini
+.DS_Store
 
 # Chocolatey
 .chocolatey/
@@ -23,6 +24,7 @@ Desktop.ini
 .vscode/
 .vs/
 .idea/
+*.code-workspace
 
 # Claude Code Settings (user-specific)
 .claude/
@@ -31,3 +33,13 @@ Desktop.ini
 *.tmp
 temp/
 tmp/
+.tmp/
+
+# Environment files
+.env
+.env.*.local
+
+# Archives
+*.tar
+*.tar.gz
+*.tgz

@@ -1380,7 +1380,12 @@ function Install-Winget {
             Invoke-WebRequest -Uri $runtimeUrl -OutFile $runtimePath -ErrorAction Stop
             
             Write-Info "Executing Windows App Runtime installer..."
-            Start-Process -FilePath $runtimePath -ArgumentList "--quiet" -Wait -NoNewWindow
+            $proc = Start-Process -FilePath $runtimePath -ArgumentList "--quiet", "--force" -Wait -PassThru -NoNewWindow
+            
+            if ($proc.ExitCode -ne 0) {
+                Write-WarningMsg "Windows App Runtime installer exited with code $($proc.ExitCode)"
+            }
+            
             Remove-Item $runtimePath -Force -ErrorAction SilentlyContinue
         } catch {
             Write-WarningMsg "Could not install Windows App Runtime automatically: $($_.Exception.Message)"
@@ -1392,7 +1397,14 @@ function Install-Winget {
         Invoke-WebRequest -Uri $bundleAsset.browser_download_url -OutFile $tempPath
         
         Write-Info "Installing Winget..."
-        Add-AppxPackage -Path $tempPath -ForceApplicationShutdown
+        try {
+            Add-AppxPackage -Path $tempPath -ForceApplicationShutdown -ErrorAction Stop
+        } catch {
+            Write-WarningMsg "First attempt failed: $($_.Exception.Message)"
+            Write-Info "Retrying installation in 5 seconds..."
+            Start-Sleep -Seconds 5
+            Add-AppxPackage -Path $tempPath -ForceApplicationShutdown -ErrorAction Stop
+        }
         
         Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
         

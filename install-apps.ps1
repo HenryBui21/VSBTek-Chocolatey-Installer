@@ -1374,11 +1374,16 @@ function Install-Winget {
         Write-Info "Installing Windows App Runtime (Dependency)..."
         try {
             $runtimeUrl = "https://aka.ms/windowsappsdk/latest/stable/windowsappruntimeinstall-$arch.exe"
-            $runtimePath = "$env:TEMP\windowsappruntimeinstall.exe"
+            # Use unique filename to avoid conflicts/corruption from previous runs
+            $runtimePath = "$env:TEMP\windowsappruntimeinstall-$(Get-Random).exe"
             
             Write-Info "Downloading Windows App Runtime installer..."
             Invoke-WebRequest -Uri $runtimeUrl -OutFile $runtimePath -ErrorAction Stop
             
+            if ((Get-Item $runtimePath).Length -lt 10240) {
+                throw "Downloaded file is too small or corrupted (Size: $((Get-Item $runtimePath).Length) bytes)"
+            }
+
             Write-Info "Executing Windows App Runtime installer..."
             $proc = Start-Process -FilePath $runtimePath -ArgumentList "--quiet", "--force" -Wait -PassThru -NoNewWindow
             

@@ -1352,8 +1352,7 @@ function Install-Winget {
         $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
         $depAssets = $release.assets | Where-Object { 
             ($_.name -match "Microsoft\.UI\.Xaml.*$arch") -or 
-            ($_.name -match "Microsoft\.VCLibs.*$arch") -or
-            ($_.name -match "Microsoft\.WindowsAppRuntime.*$arch")
+            ($_.name -match "Microsoft\.VCLibs.*$arch")
         }
 
         # 3. Download and Install Dependencies first
@@ -1370,7 +1369,24 @@ function Install-Winget {
             Remove-Item $depPath -Force -ErrorAction SilentlyContinue
         }
         
-        # 4. Download and Install Winget Bundle
+        # 4. Install Windows App Runtime (Critical Dependency)
+        # Winget often requires the Windows App Runtime which is not included in the GitHub release assets.
+        Write-Info "Installing Windows App Runtime (Dependency)..."
+        try {
+            $runtimeUrl = "https://aka.ms/windowsappsdk/latest/stable/windowsappruntimeinstall-$arch.exe"
+            $runtimePath = "$env:TEMP\windowsappruntimeinstall.exe"
+            
+            Write-Info "Downloading Windows App Runtime installer..."
+            Invoke-WebRequest -Uri $runtimeUrl -OutFile $runtimePath -ErrorAction Stop
+            
+            Write-Info "Executing Windows App Runtime installer..."
+            Start-Process -FilePath $runtimePath -ArgumentList "--quiet" -Wait -NoNewWindow
+            Remove-Item $runtimePath -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-WarningMsg "Could not install Windows App Runtime automatically: $($_.Exception.Message)"
+        }
+
+        # 5. Download and Install Winget Bundle
         $tempPath = "$env:TEMP\$($bundleAsset.name)"
         Write-Info "Downloading $($bundleAsset.name)..."
         Invoke-WebRequest -Uri $bundleAsset.browser_download_url -OutFile $tempPath

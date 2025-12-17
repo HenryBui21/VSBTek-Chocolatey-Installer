@@ -1101,7 +1101,8 @@ function Update-ChocoPackage {
     param(
         [string]$PackageName,
         [string]$Version = $null,
-        [switch]$AllowReinstall
+        [switch]$AllowReinstall,
+        [bool]$InstallIfMissing = $true
     )
 
     Write-Info "Updating $PackageName..."
@@ -1133,9 +1134,14 @@ function Update-ChocoPackage {
                     return $false
                 }
             } else {
-                Write-WarningMsg "$PackageName is not installed"
-                Write-Info "  Installing package instead..."
-                return Install-ChocoPackage -PackageName $PackageName -Version $Version -ForceInstall $false
+                if ($InstallIfMissing) {
+                    Write-WarningMsg "$PackageName is not installed"
+                    Write-Info "  Installing package instead..."
+                    return Install-ChocoPackage -PackageName $PackageName -Version $Version -ForceInstall $false
+                } else {
+                    Write-WarningMsg "$PackageName is not installed or not managed by Chocolatey. Skipping."
+                    return $false
+                }
             }
         }
 
@@ -1778,7 +1784,7 @@ function Invoke-UpdateMode {
             $updated = Update-WingetPackage -PackageName $appName -Version $appVersion
             if (-not $updated) {
                 Write-WarningMsg "Winget update failed or not applicable. Attempting fallback to Chocolatey..."
-                $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall
+                $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall -InstallIfMissing:$false
             }
         } else {
             $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall

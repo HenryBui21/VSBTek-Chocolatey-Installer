@@ -1327,6 +1327,29 @@ function Get-RemoteWingetVersion {
     return $null
 }
 
+function Get-PreferredSource {
+    param([string]$AppName, [bool]$UseWinget)
+    
+    if (-not $UseWinget) { return 'Choco' }
+    
+    Write-Info "Checking available versions..."
+    $wVer = Get-RemoteWingetVersion -Name $AppName
+    $cVer = Get-RemoteChocoVersion -Name $AppName
+
+    if ($wVer -and $cVer) {
+        Write-Info "  Winget: $wVer | Chocolatey: $cVer"
+        if ((Compare-Versions $wVer $cVer) -ge 0) { return 'Winget' }
+    } elseif ($wVer) {
+        Write-Info "  Found on Winget ($wVer)"
+        return 'Winget'
+    } elseif ($cVer) {
+        Write-Info "  Found on Chocolatey ($cVer)"
+        return 'Choco'
+    }
+    
+    return 'Winget' # Default preference if check fails or not found (let it fail naturally)
+}
+
 function Install-Winget {
     Write-Info "Winget not found. Attempting to install..."
 
@@ -1348,7 +1371,7 @@ function Install-Winget {
         $bundleAsset = $release.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
         if (-not $bundleAsset) { throw "Could not find .msixbundle in latest release" }
         
-        # 2. Find Dependencies (VCLibs, UI.Xaml, WindowsAppRuntime) - Detect Architecture
+        # 2. Find Dependencies (VCLibs, UI.Xaml) - Detect Architecture
         $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
         $depAssets = $release.assets | Where-Object { 
             ($_.name -match "Microsoft\.UI\.Xaml.*$arch") -or 
@@ -1640,26 +1663,7 @@ function Invoke-InstallMode {
 
         Write-ColorOutput "`n[$currentIndex/$totalCount] Processing: $appName" -Color Cyan
 
-        $primarySource = 'Choco'
-
-        if ($UseWinget) {
-            Write-Info "Checking available versions..."
-            $wVer = Get-RemoteWingetVersion -Name $appName
-            $cVer = Get-RemoteChocoVersion -Name $appName
-
-            if ($wVer -and $cVer) {
-                Write-Info "  Winget: $wVer | Chocolatey: $cVer"
-                if ((Compare-Versions $wVer $cVer) -ge 0) { $primarySource = 'Winget' }
-            } elseif ($wVer) {
-                Write-Info "  Found on Winget ($wVer)"
-                $primarySource = 'Winget'
-            } elseif ($cVer) {
-                Write-Info "  Found on Chocolatey ($cVer)"
-                $primarySource = 'Choco'
-            } else {
-                $primarySource = 'Winget' # Default preference if check fails
-            }
-        }
+        $primarySource = Get-PreferredSource -AppName $appName -UseWinget $UseWinget
 
         $installed = $false
 

@@ -1348,11 +1348,12 @@ function Install-Winget {
         $bundleAsset = $release.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
         if (-not $bundleAsset) { throw "Could not find .msixbundle in latest release" }
         
-        # 2. Find Dependencies (VCLibs and UI.Xaml) - Detect Architecture
+        # 2. Find Dependencies (VCLibs, UI.Xaml, WindowsAppRuntime) - Detect Architecture
         $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
         $depAssets = $release.assets | Where-Object { 
             ($_.name -match "Microsoft\.UI\.Xaml.*$arch") -or 
-            ($_.name -match "Microsoft\.VCLibs.*$arch") 
+            ($_.name -match "Microsoft\.VCLibs.*$arch") -or
+            ($_.name -match "Microsoft\.WindowsAppRuntime.*$arch")
         }
 
         # 3. Download and Install Dependencies first

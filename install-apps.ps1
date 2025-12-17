@@ -1,4 +1,4 @@
-# VSBTek Chocolatey Manager - Unified Script
+# VSBTek Unified App Manager - Hybrid Script
 # Combines installation, management, and remote execution capabilities
 # Author: VSBTek
 # Repository: https://github.com/HenryBui21/VSBTek-Chocolatey-Installer
@@ -54,12 +54,37 @@ $script:ChocoPackagesCache = $null
 $script:CacheTimestamp = $null
 $script:CacheExpiryMinutes = 5
 
-# Global preset configuration map
-$script:PresetConfigMap = @{
-    "basic" = "basic-apps-config.json"
-    "dev" = "dev-tools-config.json"
-    "community" = "community-config.json"
-    "gaming" = "gaming-config.json"
+# Known presets for display names and backward compatibility
+$script:KnownPresets = @{
+    "basic" = @{ File="basic-apps-config.json"; Title="Basic Apps" }
+    "dev" = @{ File="dev-tools-config.json"; Title="Dev Tools" }
+    "community" = @{ File="community-config.json"; Title="Community" }
+    "gaming" = @{ File="gaming-config.json"; Title="Gaming" }
+}
+
+# Mapping from Chocolatey Package IDs to Winget IDs
+# Loaded dynamically from winget-map.json
+$script:ChocoToWingetMap = @{}
+
+try {
+    $mapFile = "winget-map.json"
+    $localMapPath = Join-Path $PSScriptRoot $mapFile
+    
+    if (Test-Path $localMapPath) {
+        $jsonMap = Get-Content $localMapPath -Raw | ConvertFrom-Json
+    } else {
+        # Fallback to remote if local file missing (e.g. running via quick-install)
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+        $jsonContent = $webClient.DownloadString("$GitHubRepo/$mapFile")
+        $jsonMap = $jsonContent | ConvertFrom-Json
+    }
+
+    foreach ($prop in $jsonMap.PSObject.Properties) {
+        $script:ChocoToWingetMap[$prop.Name] = $prop.Value
+    }
+} catch {
+    # Silent failure - mapping will be empty, fallback to direct name usage
 }
 
 # ============================================================================
@@ -222,6 +247,54 @@ function Get-RemoteChocoVersion {
 # HELPER FUNCTIONS - CONFIGURATION
 # ============================================================================
 
+function Get-AvailablePresets {
+    param([string]$Mode = 'local')
+    
+    $presets = @()
+    
+    if ($Mode -eq 'local') {
+        # Dynamic discovery: Scan for *-config.json files
+        $files = Get-ChildItem -Path $PSScriptRoot -Filter "*-config.json" -ErrorAction SilentlyContinue
+        
+        foreach ($file in $files) {
+            # Check if this file matches a known preset (for better display title)
+            $knownKey = $null
+            foreach ($key in $script:KnownPresets.Keys) {
+                if ($script:KnownPresets[$key].File -eq $file.Name) {
+                    $knownKey = $key
+                    break
+                }
+            }
+
+            if ($knownKey) {
+                $presets += [PSCustomObject]@{
+                    ID = $knownKey
+                    Title = $script:KnownPresets[$knownKey].Title
+                    File = $file.Name
+                }
+            } else {
+                # New/Custom preset found (e.g. "office-config.json" -> ID: "office")
+                $id = $file.Name -replace '-config.json',''
+                $title = $id.Substring(0,1).ToUpper() + $id.Substring(1).ToLower() + " (Custom)"
+                $presets += [PSCustomObject]@{
+                    ID = $id
+                    Title = $title
+                    File = $file.Name
+                }
+            }
+        }
+    }
+    
+    # If no local files found (or remote mode), fallback to known list
+    if ($presets.Count -eq 0) {
+        foreach ($key in $script:KnownPresets.Keys) {
+            $presets += [PSCustomObject]@{ ID=$key; Title=$script:KnownPresets[$key].Title; File=$script:KnownPresets[$key].File }
+        }
+    }
+    
+    return $presets | Sort-Object Title
+}
+
 function Get-ApplicationConfig {
     param([string]$ConfigPath)
 
@@ -289,7 +362,15 @@ function Get-ConfigApplications {
 
     if ($Preset) {
         # Use preset configuration
-        $configFileName = $script:PresetConfigMap[$Preset]
+        $configFileName = $null
+        
+        # Check known presets first (backward compatibility)
+        if ($script:KnownPresets.ContainsKey($Preset)) {
+            $configFileName = $script:KnownPresets[$Preset].File
+        } else {
+            # Dynamic fallback: assume standard naming "name-config.json"
+            $configFileName = "$Preset-config.json"
+        }
 
         if ($Mode -eq 'remote') {
             # Download from GitHub
@@ -326,16 +407,11 @@ function Get-AllAvailableApps {
     Write-Info "Loading all available applications from presets..."
 
     $allApps = @()
-    $categories = @{
-        'basic' = 'Basic Apps'
-        'dev' = 'Dev Tools'
-        'community' = 'Community'
-        'gaming' = 'Gaming'
-    }
+    $presets = Get-AvailablePresets -Mode $Mode
 
-    foreach ($presetKey in $categories.Keys) {
-        $configFileName = $script:PresetConfigMap[$presetKey]
-        $categoryName = $categories[$presetKey]
+    foreach ($preset in $presets) {
+        $configFileName = $preset.File
+        $categoryName = $preset.Title
 
         try {
             if ($Mode -eq 'remote') {
@@ -343,9 +419,8 @@ function Get-AllAvailableApps {
                 $apps = Get-WebConfig -ConfigUrl $configUrl
             } else {
                 $configPath = Join-Path $PSScriptRoot $configFileName
-                if (-not (Test-Path $configPath)) {
-                    Write-WarningMsg "Local config not found: $configFileName, trying remote..."
-                    # Fallback to remote if local not found
+                if (-not (Test-Path $configPath) -and $Mode -eq 'local') {
+                    # Try remote fallback if local file missing but listed
                     $configUrl = "$GitHubRepo/$configFileName"
                     $apps = Get-WebConfig -ConfigUrl $configUrl
                 } else {
@@ -1182,42 +1257,113 @@ function Show-InstalledPackages {
 }
 
 function Invoke-UpgradeAll {
-    Write-Info "Upgrading all installed Chocolatey packages..."
+    Write-ColorOutput "`n========================================" -Color Magenta
+    Write-ColorOutput "  System-Wide Upgrade (Hybrid)" -Color Magenta
+    Write-ColorOutput "========================================`n" -Color Magenta
 
+    # 1. Chocolatey
+    Write-Info "Phase 1/2: Upgrading Chocolatey packages..."
     try {
         $null = & choco upgrade all -y --no-progress 2>&1
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Success "All packages upgraded successfully"
-            return $true
+            Write-Success "Chocolatey upgrade completed successfully"
         } else {
-            Write-WarningMsg "Some packages may have encountered issues during upgrade"
-            return $false
+            Write-WarningMsg "Chocolatey upgrade encountered issues"
         }
     }
     catch {
-        Write-ErrorMsg "Failed to upgrade packages: $($_.Exception.Message)"
-        return $false
+        Write-ErrorMsg "Chocolatey upgrade failed: $($_.Exception.Message)"
     }
+
+    Write-Host ""
+
+    # 2. Winget
+    Write-Info "Phase 2/2: Upgrading Winget packages..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        # --include-unknown: upgrade packages even if not installed by winget originally
+        $wingetArgs = @('upgrade', '--all', '--include-unknown', '--accept-package-agreements', '--accept-source-agreements')
+        $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -PassThru -NoNewWindow
+        
+        if ($process.ExitCode -eq 0) {
+            Write-Success "Winget upgrade completed successfully"
+        } else {
+            Write-WarningMsg "Winget upgrade encountered issues (Exit code: $($process.ExitCode))"
+        }
+    } else {
+        Write-Info "Winget not installed, skipping."
+    }
+    
+    return $true
 }
 
 # ============================================================================
 # HELPER FUNCTIONS - WINGET
 # ============================================================================
 
+function Resolve-WingetId {
+    param([string]$Name)
+    $lowerName = $Name.ToLower()
+    if ($script:ChocoToWingetMap.ContainsKey($lowerName)) {
+        return $script:ChocoToWingetMap[$lowerName]
+    }
+    return $Name
+}
+
 function Get-RemoteWingetVersion {
     param([string]$Name)
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return $null }
     
+    $target = Resolve-WingetId -Name $Name
+
     # winget show returns unstructured text, we need to parse "Version: x.y.z"
     # We use --accept-source-agreements to avoid prompts
-    $output = winget show $Name --accept-source-agreements 2>&1
+    $output = winget show --id $target --exact --accept-source-agreements 2>&1
     foreach ($line in $output) {
         if ($line -match "Version:\s+(.+)") {
             return $matches[1].Trim()
         }
     }
     return $null
+}
+
+function Install-Winget {
+    Write-Info "Winget not found. Attempting to install..."
+
+    # Check OS Version (Winget requires Windows 10 1709 (16299) or later)
+    $osVersion = [Environment]::OSVersion.Version
+    if ($osVersion.Major -lt 10 -or ($osVersion.Major -eq 10 -and $osVersion.Build -lt 16299)) {
+        Write-ErrorMsg "Your Windows version is too old for Winget (Requires Build 16299+)."
+        return $false
+    }
+
+    try {
+        Write-Info "Downloading latest Winget release info..."
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        
+        $releaseUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+        $release = Invoke-RestMethod -Uri $releaseUrl
+        $asset = $release.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
+        
+        if (-not $asset) { throw "Could not find .msixbundle in latest release" }
+        
+        $tempPath = "$env:TEMP\winget.msixbundle"
+        Write-Info "Downloading $($asset.name)..."
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempPath
+        
+        Write-Info "Installing Winget..."
+        Add-AppxPackage -Path $tempPath -ForceApplicationShutdown
+        
+        Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
+        
+        # Refresh env to pick up new path
+        Update-SessionEnvironment
+        
+        return (Get-Command winget -ErrorAction SilentlyContinue)
+    } catch {
+        Write-ErrorMsg "Failed to install Winget automatically: $($_.Exception.Message)"
+        return $false
+    }
 }
 
 function Install-WingetPackage {
@@ -1231,14 +1377,19 @@ function Install-WingetPackage {
     Write-Info "Installing $PackageName via Winget..."
 
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-ErrorMsg "Winget command not found. Please ensure App Installer is installed."
-        return $false
+        if (-not (Install-Winget)) {
+            Write-ErrorMsg "Winget command not found and auto-installation failed."
+            return $false
+        }
     }
+
+    $target = Resolve-WingetId -Name $PackageName
 
     try {
         # Construct arguments
         # We use --accept-package-agreements and --accept-source-agreements for automation
-        $wingetArgs = @('install', $PackageName, '--accept-package-agreements', '--accept-source-agreements')
+        # Use --id and --exact to ensure we install the specific package and avoid search lists
+        $wingetArgs = @('install', '--id', $target, '--exact', '--accept-package-agreements', '--accept-source-agreements')
 
         if ($Version) {
             $wingetArgs += '--version'
@@ -1281,7 +1432,9 @@ function Update-WingetPackage {
 
     Write-Info "Updating $PackageName via Winget..."
 
-    $wingetArgs = @('upgrade', $PackageName, '--accept-package-agreements', '--accept-source-agreements')
+    $target = Resolve-WingetId -Name $PackageName
+
+    $wingetArgs = @('upgrade', '--id', $target, '--exact', '--accept-package-agreements', '--accept-source-agreements')
     if ($Version) {
         $wingetArgs += '--version'
         $wingetArgs += $Version
@@ -1298,7 +1451,9 @@ function Uninstall-WingetPackage {
 
     Write-Info "Uninstalling $PackageName via Winget..."
 
-    $wingetArgs = @('uninstall', $PackageName)
+    $target = Resolve-WingetId -Name $PackageName
+
+    $wingetArgs = @('uninstall', '--id', $target, '--exact')
     $process = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -PassThru -NoNewWindow
     
     if ($process.ExitCode -eq 0) {
@@ -1337,14 +1492,14 @@ function Show-ContinuePrompt {
 function Show-MainMenu {
     while ($true) {
         Write-ColorOutput "`n========================================" -Color Cyan
-        Write-ColorOutput "  VSBTek Chocolatey Manager" -Color Cyan
+        Write-ColorOutput "  VSBTek Unified App Manager" -Color Cyan
         Write-ColorOutput "========================================" -Color Cyan
         Write-Host ""
         Write-Host "  1. Install applications"
         Write-Host "  2. Update applications"
         Write-Host "  3. Uninstall applications"
         Write-Host "  4. List installed applications"
-        Write-Host "  5. Upgrade all Chocolatey packages"
+        Write-Host "  5. Upgrade all packages (Hybrid)"
         Write-Host "  6. Exit"
         Write-Host ""
 
@@ -1369,41 +1524,43 @@ function Show-MainMenu {
 }
 
 function Show-PresetMenu {
+    $presets = Get-AvailablePresets -Mode 'local'
+    
     while ($true) {
         Write-ColorOutput "`n========================================" -Color Cyan
         Write-ColorOutput "  Select Application Preset" -Color Cyan
         Write-ColorOutput "========================================" -Color Cyan
         Write-Host ""
-        Write-Host "  1. Basic Apps (18 apps) - Browsers, utilities, tools"
-        Write-Host "  2. Dev Tools (13 apps) - IDEs, Git, Docker, etc."
-        Write-Host "  3. Community (4 apps) - Teams, Zoom, Telegram, Zalo"
-        Write-Host "  4. Gaming (9 apps) - Steam, Discord, OBS, etc."
-        Write-Host "  5. Custom Selection - Pick individual apps from all categories"
-        Write-Host "  6. Cancel"
+        
+        $i = 1
+        foreach ($p in $presets) {
+            Write-Host "  $i. $($p.Title)"
+            $i++
+        }
+        Write-Host "  $i. Custom Selection"
+        Write-Host "  $($i+1). Cancel"
         Write-Host ""
 
-        $choice = Read-Host "Enter your choice (1-6)"
-
-        switch ($choice) {
-            '1' { return 'basic' }
-            '2' { return 'dev' }
-            '3' { return 'community' }
-            '4' { return 'gaming' }
-            '5' { return 'custom' }
-            '6' {
+        $choice = Read-Host "Enter your choice (1-$($i+1))"
+        
+        if ($choice -match '^\d+$') {
+            $val = [int]$choice
+            if ($val -ge 1 -and $val -le $presets.Count) {
+                return $presets[$val-1].ID
+            } elseif ($val -eq ($presets.Count + 1)) {
+                return 'custom'
+            } elseif ($val -eq ($presets.Count + 2)) {
                 Write-Info "Cancelled"
                 exit 0
             }
-            default {
-                Write-ErrorMsg "Invalid choice. Please try again."
-                # Continue loop for retry
-            }
         }
+        
+        Write-ErrorMsg "Invalid choice. Please try again."
     }
 }
 
 # ============================================================================
-# MAIN EXECUTION LOGIC
+# MAIN EXECUTION FUNCTIONS
 # ============================================================================
 
 function Invoke-InstallMode {
@@ -1516,6 +1673,10 @@ function Invoke-UpdateMode {
 
         if ($UseWinget) {
             $updated = Update-WingetPackage -PackageName $appName -Version $appVersion
+            if (-not $updated) {
+                Write-WarningMsg "Winget update failed or not applicable. Attempting fallback to Chocolatey..."
+                $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall
+            }
         } else {
             $updated = Update-ChocoPackage -PackageName $appName -Version $appVersion -AllowReinstall:$AllowReinstall
         }
@@ -1565,6 +1726,10 @@ function Invoke-UninstallMode {
 
         if ($UseWinget) {
             $uninstalled = Uninstall-WingetPackage -PackageName $appName
+            if (-not $uninstalled) {
+                Write-WarningMsg "Winget uninstall failed. Attempting fallback to Chocolatey..."
+                $uninstalled = Uninstall-ChocoPackage -PackageName $appName -ForceUninstall $Force
+            }
         } else {
             $uninstalled = Uninstall-ChocoPackage -PackageName $appName -ForceUninstall $Force
         }
@@ -1605,11 +1770,11 @@ function Invoke-MainWorkflow {
         $selectedAction = Show-MainMenu
     }
 
-    Write-ColorOutput "`nSelected Action: $selectedAction" -Color Yellow
+    Write-Host ""
+    Write-ColorOutput "Selected Action: $selectedAction" -Color Yellow
 
     # Handle Upgrade All (doesn't need config)
     if ($selectedAction -eq 'Upgrade') {
-        Write-Info "Upgrading all installed Chocolatey packages..."
         Invoke-UpgradeAll
         return $true  # Continue to menu
     }
@@ -1686,7 +1851,7 @@ function Invoke-MainWorkflow {
 # ============================================================================
 
 Write-ColorOutput "`n========================================" -Color Magenta
-Write-ColorOutput "  VSBTek Chocolatey Manager" -Color Magenta
+Write-ColorOutput "  VSBTek Unified App Manager" -Color Magenta
 Write-ColorOutput "========================================`n" -Color Magenta
 
 # Check administrator privileges
@@ -1725,6 +1890,20 @@ if (-not (Install-Chocolatey)) {
     }
 }
 
+# Check Winget Status
+Write-Info "Checking Winget status..."
+if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Write-Success "Winget is installed"
+    winget --version
+} else {
+    Write-WarningMsg "Winget is NOT installed"
+    if ([Environment]::OSVersion.Version.Build -ge 16299) {
+        Write-Info "Auto-installation will be attempted if Winget features are used."
+    } else {
+        Write-Info "Your OS does not support Winget."
+    }
+}
+
 # Main execution loop
 $continueRunning = $true
 
@@ -1754,7 +1933,7 @@ while ($continueRunning) {
     }
 }
 
-Write-Info "Thank you for using VSBTek Chocolatey Manager!"
+Write-Info "Thank you for using VSBTek Unified App Manager!"
 
 <#
 .SYNOPSIS

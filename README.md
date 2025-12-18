@@ -1,19 +1,21 @@
-# VSBTek Chocolatey Installer
+# 🚀 VSBTek Unified App Manager
 
-Công cụ PowerShell tự động cài đặt và quản lý ứng dụng Windows qua Chocolatey với hỗ trợ remote execution và preset configurations.
+Công cụ PowerShell mạnh mẽ giúp tự động hóa việc cài đặt, cập nhật và quản lý ứng dụng Windows thông qua Chocolatey. Hỗ trợ cài đặt hàng loạt, remote config và giao diện chọn ứng dụng trực quan.
 
-## Yêu cầu hệ thống
+## 📋 Yêu cầu hệ thống
 
-- **Operating System**: Windows 10/11 hoặc Windows Server 2016+
-- **PowerShell**: Version 5.1 trở lên (đã có sẵn trong Windows 10/11)
-- **Execution Policy**: Cần quyền chạy scripts (script sẽ tự động xử lý)
-- **Administrator Rights**: Bắt buộc (script sẽ tự động yêu cầu elevation)
-- **Internet Connection**: Cần thiết để tải packages từ Chocolatey repository
-- **.NET Framework**: .NET 4.8+ (thường đã có sẵn trên Windows 10/11)
+*   **Hệ điều hành**: Windows 10/11 hoặc Windows Server 2016+
+*   **PowerShell**: Version 5.1 trở lên
+*   **Quyền Admin**: Bắt buộc (Script tự động yêu cầu quyền)
+*   **Kết nối Internet**: Ổn định để tải packages
 
-**Kiểm tra PowerShell version:**
+## ⚡ Cài đặt nhanh (Quick Start)
+
+Mở **PowerShell (Run as Administrator)** và chạy lệnh sau để bắt đầu ngay:
+
 ```powershell
-$PSVersionTable.PSVersion
+# Cách 1: Cài đặt trực tiếp từ GitHub (Khuyên dùng)
+irm https://raw.githubusercontent.com/HenryBui21/VSBTek-Chocolatey-Installer/main/quick-install.ps1 | iex
 ```
 
 ## Cài đặt nhanh

@@ -20,7 +20,7 @@ param(
     [string]$Action = $null,
 
     [Parameter(Mandatory=$false)]
-    [ValidateSet('basic', 'dev', 'community', 'gaming')]
+    [ValidateSet('basic', 'dev', 'community', 'gaming', 'remote')]
     [string]$Preset = $null,
 
     [Parameter(Mandatory=$false)]
@@ -61,6 +61,7 @@ $script:KnownPresets = @{
     "dev" = @{ File="dev-tools-config.json"; Title="Dev Tools" }
     "community" = @{ File="community-config.json"; Title="Community" }
     "gaming" = @{ File="gaming-config.json"; Title="Gaming" }
+    "remote" = @{ File="remote-config.json"; Title="Remote Tools" }
 }
 
 # Mapping from Chocolatey Package IDs to Winget IDs

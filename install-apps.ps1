@@ -1515,6 +1515,7 @@ function Install-Winget {
         Invoke-WebRequest -Uri $bundleAsset.browser_download_url -OutFile $tempPath
         
         Write-Info "Installing Winget..."
+        try {
             Add-AppxPackage -LiteralPath $tempPath -ForceApplicationShutdown -ErrorAction Stop
         } catch {
             Write-WarningMsg "First attempt failed: $($_.Exception.Message)"
@@ -1527,9 +1528,10 @@ function Install-Winget {
         # Refresh env to pick up new path
         Update-SessionEnvironment
         winget -ErrorAction SilentlyContinue
-        } catch {
+    } catch {
         Write-ErrorMsg "Failed to install Winget automatically: $($_.Exception.Message)"
-        return $
+        return $false
+    }
 }
 
 function Install-WingetPackage {

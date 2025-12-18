@@ -1,8 +1,7 @@
 # VSBTek Unified App Manager - Hybrid Script
 # Combines installation, management, and remote execution capabilities
 # Author: VSBTek
-# Repository: https://github.com/HenryBui21/VSBTek-Chocolatey-Installer
-#
+# Repository: https://github.com/HenryBui21/VSBTek-Unified-App-Manager
 # Usage:
 #   Local interactive:     .\install-apps.ps1
 #   Local with preset:     .\install-apps.ps1 -Preset basic
@@ -42,9 +41,8 @@ param(
 # ============================================================================
 
 # GitHub repository URL for remote mode
-$GitHubRepo = "https://raw.githubusercontent.com/HenryBui21/VSBTek-Chocolatey-Installer/main"
+$GitHubRepo = "https://raw.githubusercontent.com/HenryBui21/VSBTek-Unified-App-Manager/main"
 $ScriptUrl = "https://scripts.vsbtek.com/install-apps.ps1"
-
 # Script configuration
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'

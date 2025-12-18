@@ -1,0 +1,24 @@
+{
+  "applications": [
+    {
+      "name": "ultraviewer",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "rustdesk",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "anydesk",
+      "version": null,
+      "params": []
+    },
+    {
+      "name": "teamviewer",
+      "version": null,
+      "params": []
+    }
+  ]
+}

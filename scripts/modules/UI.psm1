@@ -89,6 +89,8 @@ function Show-CheckboxSelectionForm {
     return $null
 }
 
+
+
 function Show-TextBasedSelection {
     param([array]$Apps)
     
@@ -141,14 +143,35 @@ function Show-CustomSelectionMenu {
     $allApps = Get-AllAvailableApps -Mode $Mode -RootPath $RootPath -GitHubRepo $GitHubRepo
     if (-not $allApps) { return $null }
 
-    # Try WinForms
-    try {
-        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-        $selectedApps = Show-CheckboxSelectionForm -Apps $allApps
-        if ($selectedApps) { return $selectedApps }
-    } catch {}
+    # Smart Detection Logic
+    $canShowGui = $false
+    
+    # Check 1: Is the environment interactive?
+    if ([Environment]::UserInteractive) {
+        # Check 2: Can we load Windows Forms?
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+            $canShowGui = $true
+        } catch {
+            Write-Warning "GUI libraries not available. Falling back to text mode."
+        }
+    }
 
-    # Fallback to Text
+    if ($canShowGui) {
+        # Try to show the GUI
+        try {
+            $selectedApps = Show-CheckboxSelectionForm -Apps $allApps
+            
+            # Logic: If Show-CheckboxSelectionForm returns $null, it means the user 
+            # clicked Cancel or closed the window. We RESPECT that choice and do NOT fallback.
+            return $selectedApps
+        } catch {
+            # Only fallback if the GUI function actually crashed
+            Write-Warning "GUI encountered an error. Falling back to text mode."
+        }
+    }
+
+    # Fallback to Text ONLY if GUI is unavailable or crashed
     return Show-TextBasedSelection -Apps $allApps
 }
 

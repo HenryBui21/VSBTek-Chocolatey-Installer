@@ -38,10 +38,27 @@ $ProgressPreference = 'SilentlyContinue'
 # ============================================================================
 
 $ModulesPath = Join-Path $PSScriptRoot "scripts\modules"
+$ModulesList = @("Logger.psm1", "Core.psm1", "Config.psm1", "Detection.psm1", "PackageManager.psm1", "UI.psm1")
 
-# If modules not found (e.g. running remote one-liner without full repo), download them?
-# For now, assume structure exists. If remote, quick-install handles it or we'd need a bootstrap.
-# Since we are refactoring the repo, we assume modules exist relative to script.
+# Auto-download modules if missing (Support for Remote/One-Liner execution)
+if (-not (Test-Path $ModulesPath)) {
+    Write-Host "Running in Standalone Mode. Downloading required modules..." -ForegroundColor Cyan
+    try {
+        New-Item -ItemType Directory -Force -Path $ModulesPath | Out-Null
+        $WebClient = New-Object System.Net.WebClient
+        $WebClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+        
+        foreach ($mod in $ModulesList) {
+            $url = "https://raw.githubusercontent.com/HenryBui21/VSBTek-Unified-App-Manager/main/scripts/modules/$mod"
+            $dest = Join-Path $ModulesPath $mod
+            Write-Host "  Fetching module: $mod" -ForegroundColor Gray
+            $WebClient.DownloadFile($url, $dest)
+        }
+    } catch {
+        Write-Error "Failed to download modules. Please check your internet connection."
+        exit 1
+    }
+}
 
 Import-Module (Join-Path $ModulesPath "Logger.psm1") -Force
 Import-Module (Join-Path $ModulesPath "Core.psm1") -Force

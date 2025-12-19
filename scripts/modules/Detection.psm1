@@ -21,7 +21,7 @@ function Initialize-Detection {
         } else {
             $webClient = New-Object System.Net.WebClient
             $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-            $jsonContent = $webClient.DownloadString("$GitHubRepo/$mapFile")
+            $jsonContent = $webClient.DownloadString("$GitHubRepo/config/$mapFile")
             $jsonMap = $jsonContent | ConvertFrom-Json
         }
 

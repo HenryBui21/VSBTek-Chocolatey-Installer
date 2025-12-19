@@ -90,9 +90,9 @@ try {
         Write-Host "Proceeding without verification..." -ForegroundColor Yellow
     }
 
-    # Check for Winget support (Windows 10 1709+ / Build 16299+)
+    # Check for Winget support (Windows 10 1809+ / Build 17763+)
     $osVersion = [Environment]::OSVersion.Version
-    $isWingetSupported = ($osVersion.Major -ge 10 -and $osVersion.Build -ge 16299)
+    $isWingetSupported = ($osVersion.Major -ge 10 -and $osVersion.Build -ge 17763)
     $scriptArgs = @()
 
     if ($isWingetSupported) {

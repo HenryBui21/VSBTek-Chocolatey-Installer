@@ -254,21 +254,23 @@ Write-ColorOutput "VSBTek Unified App Manager (Modularized)" -Color Magenta
 if (-not (Install-Chocolatey)) { exit 1 }
 Update-SessionEnvironment
 
-# If Winget is already installed, always enable the flag.
-if (Get-Command winget -ErrorAction SilentlyContinue) {
-    if (-not $UseWinget) { $UseWinget = $true }
-} 
-# If the flag was passed (e.g., from quick-install) but winget is NOT installed, try to install it.
-elseif ($UseWinget) {
-    if (-not (Install-Winget)) {
-        # If installation fails, disable the flag for this session.
-        Write-WarningMsg "Winget could not be installed. Disabling Winget features."
-        $UseWinget = $false
-    }
+# Proactively check for Winget support and attempt installation if the OS is compatible.
+$isWingetSupported = $false
+$osVersion = [Environment]::OSVersion.Version
+if ($osVersion.Major -ge 10 -and $osVersion.Build -ge 17763) { # Winget requires build 17763+
+    $isWingetSupported = $true
 }
 
-if ($UseWinget) {
-    Write-Host "[OK] Winget is available and enabled for this session." -ForegroundColor Green
+# If the OS supports it, or the user explicitly requested it, try to install/enable.
+if ($isWingetSupported -or $UseWinget) {
+    if (Install-Winget) {
+        $UseWinget = $true
+        Write-Host "[OK] Winget is available and enabled for this session." -ForegroundColor Green
+    } else {
+        # If installation failed, ensure the flag is false for the rest of the session.
+        $UseWinget = $false
+        Write-WarningMsg "Winget is not available. Winget-related features will be disabled."
+    }
 }
 
 $continueRunning = $true

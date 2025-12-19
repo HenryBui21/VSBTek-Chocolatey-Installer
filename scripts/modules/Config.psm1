@@ -208,15 +208,21 @@ function Get-ConfigApplications {
             }
         }
     } elseif ($ConfigFile) {
-        $configPath = $ConfigFile
-        if (-not [System.IO.Path]::IsPathRooted($configPath)) {
-            $configPath = Join-Path $RootPath "config\$ConfigFile"
-            if (-not (Test-Path $configPath)) {
-                # Fallback to root if not found in config dir (for backward compat or absolute paths)
-                $configPath = Join-Path $RootPath $ConfigFile
+        if ($Mode -eq 'remote') {
+            # Fix: Support custom config file in remote mode
+            $configUrl = "$GitHubRepo/config/$ConfigFile"
+            $applications = Get-WebConfig -ConfigUrl $configUrl
+        } else {
+            $configPath = $ConfigFile
+            if (-not [System.IO.Path]::IsPathRooted($configPath)) {
+                $configPath = Join-Path $RootPath "config\$ConfigFile"
+                if (-not (Test-Path $configPath)) {
+                    # Fallback to root if not found in config dir
+                    $configPath = Join-Path $RootPath $ConfigFile
+                }
             }
+            $applications = Get-ApplicationConfig -ConfigPath $configPath
         }
-        $applications = Get-ApplicationConfig -ConfigPath $configPath
     }
 
     return $applications

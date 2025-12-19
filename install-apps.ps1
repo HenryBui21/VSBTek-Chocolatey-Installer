@@ -25,7 +25,10 @@ param(
     [switch]$UseWinget,
 
     [Parameter(Mandatory=$false)]
-    [switch]$KeepWindowOpen
+    [switch]$KeepWindowOpen,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$ForceUpdate
 )
 
 # Configuration
@@ -65,7 +68,7 @@ foreach ($mod in $ModulesList) {
     }
 }
 
-if ($missingModules -or $Mode -eq 'remote') {
+if ($missingModules -or $Mode -eq 'remote' -or $ForceUpdate) {
     Write-Host "Initializing VSBTek App Manager..." -ForegroundColor Cyan
     Write-Host "Downloading required modules to: $AppRoot" -ForegroundColor Gray
     
@@ -127,6 +130,7 @@ if (-not (Test-Administrator)) {
         if ($Mode) { $arguments += " -Mode `"$Mode`"" }
         if ($Force) { $arguments += " -Force" }
         if ($UseWinget) { $arguments += " -UseWinget" }
+        if ($ForceUpdate) { $arguments += " -ForceUpdate" }
         $arguments += " -KeepWindowOpen"
         
         Start-Process PowerShell.exe -ArgumentList $arguments -Verb RunAs
@@ -142,6 +146,7 @@ if (-not (Test-Administrator)) {
             # Default to remote mode behavior
             $arguments += " -Mode remote"
             if ($UseWinget) { $arguments += " -UseWinget" }
+            if ($ForceUpdate) { $arguments += " -ForceUpdate" }
             $arguments += " -KeepWindowOpen"
             
             Start-Process PowerShell.exe -ArgumentList $arguments -Verb RunAs
@@ -280,7 +285,7 @@ if ($isWingetSupported -or $UseWinget) {
 
 $continueRunning = $true
 if ($Action -or $Preset -or $ConfigFile) {
-    Invoke-MainWorkflow -InitialAction $Action -InitialPreset $Preset -InitialConfigFile $ConfigFile -ExecutionMode $Mode -ForceFlag $Force
+    Invoke-MainWorkflow -InitialAction $Action -InitialPreset $Preset -InitialConfigFile $ConfigFile -ExecutionMode $Mode -ForceFlag $Force 
     if ($KeepWindowOpen) { $continueRunning = Show-ContinuePrompt } else { $continueRunning = $false }
 }
 

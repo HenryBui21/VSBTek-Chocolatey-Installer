@@ -283,7 +283,7 @@ function Show-InstalledPackages {
 }
 
 function Show-MainMenu {
-    param([string]$RootPath)
+    param([string]$RootPath, [string]$GitHubRepo)
 
     while ($true) {
         Write-Host "`n========================================" -ForegroundColor Cyan
@@ -304,7 +304,7 @@ function Show-MainMenu {
             '3' { return 'Uninstall' }
             '4' { return 'List' }
             '5' { return 'Upgrade' }
-            '6' { Show-PolicyMenu -RootPath $RootPath }
+            '6' { Show-PolicyMenu -RootPath $RootPath -GitHubRepo $GitHubRepo }
             '7' { exit 0 }
         }
     }
@@ -338,7 +338,9 @@ function Show-PresetMenu {
 }
 
 function Show-PolicyMenu {
-    param([string]$RootPath)
+    param([string]$RootPath, [string]$GitHubRepo)
+
+    $useGridView = Get-Command Out-GridView -ErrorAction SilentlyContinue
 
     while ($true) {
         # Assumes that Add-PackagePolicyRule and Remove-PackagePolicyRule exist in the Config module
@@ -349,17 +351,29 @@ function Show-PolicyMenu {
 
         Write-Host "Current Policies:" -ForegroundColor Yellow
 
-        $pinnedText = if ($policy.pinned) { $policy.pinned -join ', ' } else { '(None)' }
         Write-Host "  Pinned Packages (won't be auto-updated by 'upgrade all'):" -ForegroundColor Gray
-        Write-Host "    $pinnedText" -ForegroundColor White
+        $filteredPinned = $policy.pinned | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        if ($filteredPinned.Count -gt 0) {
+            $filteredPinned | ForEach-Object { Write-Host "    - $_" -ForegroundColor White }
+        } else {
+            Write-Host "    (None)" -ForegroundColor White
+        }
 
-        $chocoText = if ($policy.preferChoco) { $policy.preferChoco -join ', ' } else { '(None)' }
         Write-Host "  Prefer Chocolatey For:" -ForegroundColor Gray
-        Write-Host "    $chocoText" -ForegroundColor White
+        $filteredChoco = $policy.preferChoco | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        if ($filteredChoco.Count -gt 0) {
+            $filteredChoco | ForEach-Object { Write-Host "    - $_" -ForegroundColor White }
+        } else {
+            Write-Host "    (None)" -ForegroundColor White
+        }
 
-        $wingetText = if ($policy.preferWinget) { $policy.preferWinget -join ', ' } else { '(None)' }
         Write-Host "  Prefer Winget For:" -ForegroundColor Gray
-        Write-Host "    $wingetText" -ForegroundColor White
+        $filteredWinget = $policy.preferWinget | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        if ($filteredWinget.Count -gt 0) {
+            $filteredWinget | ForEach-Object { Write-Host "    - $_" -ForegroundColor White }
+        } else {
+            Write-Host "    (None)" -ForegroundColor White
+        }
         Write-Host ""
         
         Write-Host "  1. Add 'Pin' rule"
@@ -371,58 +385,123 @@ function Show-PolicyMenu {
         $choice = Read-Host "Enter choice"
         switch ($choice) {
             '1' {
-                $pkg = Read-Host "Enter package name to Pin (e.g. 'vscode')"
-                if (-not [string]::IsNullOrWhiteSpace($pkg)) {
-                    $pkgName = $pkg.ToLower().Trim()
-                    Add-PackagePolicyRule -Type 'pinned' -PackageName $pkgName
-                    Write-Host "[OK] Pin rule added for '$pkgName'." -ForegroundColor Green
-
-                    # Attempt to apply the pin immediately if the package is installed
-                    Write-Host "  Checking if package is installed to apply pin now..." -ForegroundColor Gray
-                    
-                    $isChoco = Test-PackageInstalled -PackageName $pkgName -ChocoOnly
-                    
-                    $isWinget = $false
-                    $wingetId = Resolve-WingetId -Name $pkgName
-                    $wingetList = Get-WingetListCache
-                    if ($wingetId -and $wingetList) {
-                        $pattern = '\s' + [regex]::Escape($wingetId) + '\s'
-                        if ($wingetList -match $pattern) { $isWinget = $true }
+                $pkgs = @()
+                if ($useGridView) {
+                    Write-Host "Loading available applications for selection..." -ForegroundColor Gray
+                    $allApps = Get-AllAvailableApps -Mode 'local' -RootPath $RootPath -GitHubRepo $GitHubRepo
+                    if ($allApps) {
+                        $selectedApps = $allApps | Select-Object Name, Category, Version | Sort-Object Category, Name | Out-GridView -Title "Select applications to Pin (use Ctrl+Click to select multiple)" -OutputMode Multiple
+                        if ($selectedApps) { $pkgs = $selectedApps.Name }
+                    } else { Write-Warning "Could not load application list." }
+                } else {
+                    $input = Read-Host "Enter package names to Pin, separated by commas (e.g. 'vscode,git')"
+                    if (-not [string]::IsNullOrWhiteSpace($input)) {
+                        $pkgs = $input.Split(',') | ForEach-Object { $_.Trim() }
                     }
+                }
 
-                    if ($isChoco) {
-                        Set-ChocoPin -PackageName $pkgName
-                    } elseif ($isWinget) {
-                        Set-WingetPin -PackageName $pkgName
-                    } else {
-                        Write-Host "  '$pkgName' is not currently managed by Choco/Winget. Pin will be applied on next install." -ForegroundColor Gray
+                if ($pkgs.Count -gt 0) {
+                    foreach ($pkg in $pkgs) {
+                        if ([string]::IsNullOrWhiteSpace($pkg)) { continue }
+                        $pkgName = $pkg.ToLower().Trim()
+                        Add-PackagePolicyRule -Type 'pinned' -PackageName $pkgName
+                        Write-Host "[OK] Pin rule added for '$pkgName'." -ForegroundColor Green
+
+                        Write-Host "  Checking if package is installed to apply pin now..." -ForegroundColor Gray
+                        $isChoco = Test-PackageInstalled -PackageName $pkgName -ChocoOnly
+                        $isWinget = $false
+                        $wingetId = Resolve-WingetId -Name $pkgName
+                        $wingetList = Get-WingetListCache
+                        if ($wingetId -and $wingetList) {
+                            $pattern = '\s' + [regex]::Escape($wingetId) + '\s'
+                            if ($wingetList -match $pattern) { $isWinget = $true }
+                        }
+
+                        if ($isChoco) { Set-ChocoPin -PackageName $pkgName }
+                        elseif ($isWinget) { Set-WingetPin -PackageName $pkgName }
+                        else { Write-Host "  '$pkgName' is not currently managed by Choco/Winget. Pin will be applied on next install." -ForegroundColor Gray }
                     }
                 }
             }
             '2' {
-                $pkg = Read-Host "Enter package name to prefer Chocolatey for (e.g. '7zip')"
-                if (-not [string]::IsNullOrWhiteSpace($pkg)) {
-                    Add-PackagePolicyRule -Type 'preferChoco' -PackageName $pkg.ToLower().Trim()
-                    Write-Host "[OK] Set preference for '$pkg' to Chocolatey" -ForegroundColor Green
+                $pkgs = @()
+                if ($useGridView) {
+                    Write-Host "Loading available applications for selection..." -ForegroundColor Gray
+                    $allApps = Get-AllAvailableApps -Mode 'local' -RootPath $RootPath -GitHubRepo $GitHubRepo
+                    if ($allApps) {
+                        $selectedApps = $allApps | Select-Object Name, Category, Version | Sort-Object Category, Name | Out-GridView -Title "Select applications to prefer Chocolatey for (use Ctrl+Click)" -OutputMode Multiple
+                        if ($selectedApps) { $pkgs = $selectedApps.Name }
+                    } else { Write-Warning "Could not load application list." }
+                } else {
+                    $input = Read-Host "Enter package names to prefer Chocolatey for, separated by commas"
+                    if (-not [string]::IsNullOrWhiteSpace($input)) {
+                        $pkgs = $input.Split(',') | ForEach-Object { $_.Trim() }
+                    }
+                }
+
+                if ($pkgs.Count -gt 0) {
+                    foreach ($pkg in $pkgs) {
+                        if ([string]::IsNullOrWhiteSpace($pkg)) { continue }
+                        Add-PackagePolicyRule -Type 'preferChoco' -PackageName $pkg.ToLower().Trim()
+                        Write-Host "[OK] Set preference for '$pkg' to Chocolatey" -ForegroundColor Green
+                    }
                 }
             }
             '3' {
-                $pkg = Read-Host "Enter package name to prefer Winget for (e.g. 'powertoys')"
-                if (-not [string]::IsNullOrWhiteSpace($pkg)) {
-                    Add-PackagePolicyRule -Type 'preferWinget' -PackageName $pkg.ToLower().Trim()
-                    Write-Host "[OK] Set preference for '$pkg' to Winget" -ForegroundColor Green
+                $pkgs = @()
+                if ($useGridView) {
+                    Write-Host "Loading available applications for selection..." -ForegroundColor Gray
+                    $allApps = Get-AllAvailableApps -Mode 'local' -RootPath $RootPath -GitHubRepo $GitHubRepo
+                    if ($allApps) {
+                        $selectedApps = $allApps | Select-Object Name, Category, Version | Sort-Object Category, Name | Out-GridView -Title "Select applications to prefer Winget for (use Ctrl+Click)" -OutputMode Multiple
+                        if ($selectedApps) { $pkgs = $selectedApps.Name }
+                    } else { Write-Warning "Could not load application list." }
+                } else {
+                    $input = Read-Host "Enter package names to prefer Winget for, separated by commas"
+                    if (-not [string]::IsNullOrWhiteSpace($input)) {
+                        $pkgs = $input.Split(',') | ForEach-Object { $_.Trim() }
+                    }
+                }
+
+                if ($pkgs.Count -gt 0) {
+                    foreach ($pkg in $pkgs) {
+                        if ([string]::IsNullOrWhiteSpace($pkg)) { continue }
+                        Add-PackagePolicyRule -Type 'preferWinget' -PackageName $pkg.ToLower().Trim()
+                        Write-Host "[OK] Set preference for '$pkg' to Winget" -ForegroundColor Green
+                    }
                 }
             }
             '4' {
-                $pkg = Read-Host "Enter package name to remove from all policies"
-                if (-not [string]::IsNullOrWhiteSpace($pkg)) {
-                    Remove-PackagePolicyRule -PackageName $pkg.ToLower().Trim()
-                    Write-Host "[OK] Removed all rules for '$pkg'" -ForegroundColor Green
+                $pkgs = @()
+                if ($useGridView) {
+                    $policy = Get-PackagePolicy
+                    $ruledPackages = ($policy.pinned + $policy.preferChoco + $policy.preferWinget) | Select-Object -Unique | Sort-Object
+                    if ($ruledPackages.Count -gt 0) {
+                        $packageObjects = $ruledPackages | ForEach-Object { [PSCustomObject]@{ PackageName = $_ } }
+                        $selectedPkgs = $packageObjects | Out-GridView -Title "Select packages to remove policies from (use Ctrl+Click)" -OutputMode Multiple
+                        if ($selectedPkgs) { $pkgs = $selectedPkgs.PackageName }
+                    } else {
+                        Write-Host "[INFO] No packages have policies to remove." -ForegroundColor Cyan
+                    }
+                } else {
+                    $input = Read-Host "Enter package names to remove from all policies, separated by commas"
+                    if (-not [string]::IsNullOrWhiteSpace($input)) {
+                        $pkgs = $input.Split(',') | ForEach-Object { $_.Trim() }
+                    }
+                }
+
+                if ($pkgs.Count -gt 0) {
+                    foreach ($pkg in $pkgs) {
+                        if ([string]::IsNullOrWhiteSpace($pkg)) { continue }
+                        Remove-PackagePolicyRule -PackageName $pkg.ToLower().Trim()
+                        Write-Host "[OK] Removed all rules for '$pkg'" -ForegroundColor Green
+                    }
                 }
             }
             '5' { return }
             default { Write-Warning "Invalid choice." }
         }
+
         # Pause to show result before looping
         if ($choice -in '1','2','3','4') {
              # Save the in-memory policy changes to the JSON file on disk.
@@ -431,6 +510,7 @@ function Show-PolicyMenu {
         }
     }
 }
+
 
 function Show-ContinuePrompt {
     Write-Host "`n  1. Return to Main Menu"

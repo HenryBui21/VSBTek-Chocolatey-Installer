@@ -38,8 +38,10 @@ function Add-PackagePolicyRule {
     $PackageName = $PackageName.ToLower()
     
     # Remove existing conflicts
-    $script:PackagePolicy.preferChoco = $script:PackagePolicy.preferChoco | Where-Object { $_ -ne $PackageName }
-    $script:PackagePolicy.preferWinget = $script:PackagePolicy.preferWinget | Where-Object { $_ -ne $PackageName }
+    # The @() wrapper is crucial to ensure the result is always an array,
+    # even if Where-Object returns a single scalar item.
+    $script:PackagePolicy.preferChoco = @($script:PackagePolicy.preferChoco | Where-Object { $_ -ne $PackageName })
+    $script:PackagePolicy.preferWinget = @($script:PackagePolicy.preferWinget | Where-Object { $_ -ne $PackageName })
 
     switch ($Type) {
         'pinned' {
@@ -57,9 +59,9 @@ function Add-PackagePolicyRule {
 function Remove-PackagePolicyRule {
     param([string]$PackageName)
     $PackageName = $PackageName.ToLower()
-    $script:PackagePolicy.pinned = $script:PackagePolicy.pinned | Where-Object { $_ -ne $PackageName }
-    $script:PackagePolicy.preferChoco = $script:PackagePolicy.preferChoco | Where-Object { $_ -ne $PackageName }
-    $script:PackagePolicy.preferWinget = $script:PackagePolicy.preferWinget | Where-Object { $_ -ne $PackageName }
+    $script:PackagePolicy.pinned = @($script:PackagePolicy.pinned | Where-Object { $_ -ne $PackageName })
+    $script:PackagePolicy.preferChoco = @($script:PackagePolicy.preferChoco | Where-Object { $_ -ne $PackageName })
+    $script:PackagePolicy.preferWinget = @($script:PackagePolicy.preferWinget | Where-Object { $_ -ne $PackageName })
 }
 
 # Config State

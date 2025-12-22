@@ -283,6 +283,8 @@ function Show-InstalledPackages {
 }
 
 function Show-MainMenu {
+    param([string]$RootPath)
+
     while ($true) {
         Write-Host "`n========================================" -ForegroundColor Cyan
         Write-Host "  VSBTek Unified App Manager" -ForegroundColor Cyan
@@ -302,7 +304,7 @@ function Show-MainMenu {
             '3' { return 'Uninstall' }
             '4' { return 'List' }
             '5' { return 'Upgrade' }
-            '6' { Show-PolicyMenu }
+            '6' { Show-PolicyMenu -RootPath $RootPath }
             '7' { exit 0 }
         }
     }
@@ -336,6 +338,8 @@ function Show-PresetMenu {
 }
 
 function Show-PolicyMenu {
+    param([string]$RootPath)
+
     while ($true) {
         # Assumes that Add-PackagePolicyRule and Remove-PackagePolicyRule exist in the Config module
         $policy = Get-PackagePolicy
@@ -344,12 +348,18 @@ function Show-PolicyMenu {
         Write-Host "========================================`n" -ForegroundColor Magenta
 
         Write-Host "Current Policies:" -ForegroundColor Yellow
+
+        $pinnedText = if ($policy.pinned) { $policy.pinned -join ', ' } else { '(None)' }
         Write-Host "  Pinned Packages (won't be auto-updated by 'upgrade all'):" -ForegroundColor Gray
-        Write-Host "    $($policy.pinned -join ', ')" -ForegroundColor White
+        Write-Host "    $pinnedText" -ForegroundColor White
+
+        $chocoText = if ($policy.preferChoco) { $policy.preferChoco -join ', ' } else { '(None)' }
         Write-Host "  Prefer Chocolatey For:" -ForegroundColor Gray
-        Write-Host "    $($policy.preferChoco -join ', ')" -ForegroundColor White
+        Write-Host "    $chocoText" -ForegroundColor White
+
+        $wingetText = if ($policy.preferWinget) { $policy.preferWinget -join ', ' } else { '(None)' }
         Write-Host "  Prefer Winget For:" -ForegroundColor Gray
-        Write-Host "    $($policy.preferWinget -join ', ')" -ForegroundColor White
+        Write-Host "    $wingetText" -ForegroundColor White
         Write-Host ""
         
         Write-Host "  1. Add 'Pin' rule"
@@ -363,8 +373,30 @@ function Show-PolicyMenu {
             '1' {
                 $pkg = Read-Host "Enter package name to Pin (e.g. 'vscode')"
                 if (-not [string]::IsNullOrWhiteSpace($pkg)) {
-                    Add-PackagePolicyRule -Type 'pinned' -PackageName $pkg.ToLower().Trim()
-                    Write-Host "[OK] Added pin for '$pkg'" -ForegroundColor Green
+                    $pkgName = $pkg.ToLower().Trim()
+                    Add-PackagePolicyRule -Type 'pinned' -PackageName $pkgName
+                    Write-Host "[OK] Pin rule added for '$pkgName'." -ForegroundColor Green
+
+                    # Attempt to apply the pin immediately if the package is installed
+                    Write-Host "  Checking if package is installed to apply pin now..." -ForegroundColor Gray
+                    
+                    $isChoco = Test-PackageInstalled -PackageName $pkgName -ChocoOnly
+                    
+                    $isWinget = $false
+                    $wingetId = Resolve-WingetId -Name $pkgName
+                    $wingetList = Get-WingetListCache
+                    if ($wingetId -and $wingetList) {
+                        $pattern = '\s' + [regex]::Escape($wingetId) + '\s'
+                        if ($wingetList -match $pattern) { $isWinget = $true }
+                    }
+
+                    if ($isChoco) {
+                        Set-ChocoPin -PackageName $pkgName
+                    } elseif ($isWinget) {
+                        Set-WingetPin -PackageName $pkgName
+                    } else {
+                        Write-Host "  '$pkgName' is not currently managed by Choco/Winget. Pin will be applied on next install." -ForegroundColor Gray
+                    }
                 }
             }
             '2' {
@@ -393,6 +425,8 @@ function Show-PolicyMenu {
         }
         # Pause to show result before looping
         if ($choice -in '1','2','3','4') {
+             # Save the in-memory policy changes to the JSON file on disk.
+             Save-PackagePolicy -RootPath $RootPath
              Read-Host "Press Enter to continue..." | Out-Null
         }
     }
